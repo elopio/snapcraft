@@ -1,0 +1,192 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.internal.libraries &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../../index.html" />
+    <link rel="up" title="snapcraft" href="../../snapcraft.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.internal.libraries</h1><div class="highlight"><pre>
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2016 Canonical Ltd</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">glob</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">platform</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+
+<span class="kn">from</span> <span class="nn">snapcraft.internal</span> <span class="kn">import</span> <span class="n">common</span>
+
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="determine_ld_library_path"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.libraries.determine_ld_library_path">[docs]</a><span class="k">def</span> <span class="nf">determine_ld_library_path</span><span class="p">(</span><span class="n">root</span><span class="p">):</span>
+    <span class="c1"># If more ld.so.conf files need to be supported, add them here.</span>
+    <span class="n">ld_config_globs</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;{}/usr/lib/*/mesa*/ld.so.conf&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+    <span class="p">}</span>
+
+    <span class="n">ld_library_paths</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">this_glob</span> <span class="ow">in</span> <span class="n">ld_config_globs</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">ld_conf_file</span> <span class="ow">in</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">this_glob</span><span class="p">):</span>
+            <span class="n">ld_library_paths</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_extract_ld_library_paths</span><span class="p">(</span><span class="n">ld_conf_file</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="p">[</span><span class="n">root</span> <span class="o">+</span> <span class="n">path</span> <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">ld_library_paths</span><span class="p">]</span></div>
+
+
+<span class="k">def</span> <span class="nf">_extract_ld_library_paths</span><span class="p">(</span><span class="n">ld_conf_file</span><span class="p">):</span>
+    <span class="c1"># From the ldconfig manpage, paths can be colon-, space-, tab-, newline-,</span>
+    <span class="c1"># or comma-separated.</span>
+    <span class="n">path_delimiters</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;[:\s,]&#39;</span><span class="p">)</span>
+    <span class="n">comments</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;#.*$&#39;</span><span class="p">)</span>
+
+    <span class="n">paths</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">ld_conf_file</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f</span><span class="p">:</span>
+            <span class="c1"># Remove comments from line</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="n">comments</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">line</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">line</span><span class="p">:</span>
+                <span class="n">paths</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">path_delimiters</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">line</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">paths</span>
+
+
+<span class="n">_libraries</span> <span class="o">=</span> <span class="bp">None</span>
+
+
+<span class="k">def</span> <span class="nf">_get_system_libs</span><span class="p">():</span>
+    <span class="k">global</span> <span class="n">_libraries</span>
+    <span class="k">if</span> <span class="n">_libraries</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_libraries</span>
+
+    <span class="n">release</span> <span class="o">=</span> <span class="n">platform</span><span class="o">.</span><span class="n">linux_distribution</span><span class="p">()[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">lib_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">common</span><span class="o">.</span><span class="n">get_librariesdir</span><span class="p">(),</span> <span class="n">release</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">lib_path</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;No libraries to exclude from this release&#39;</span><span class="p">)</span>
+        <span class="c1"># Always exclude libc.so.6</span>
+        <span class="k">return</span> <span class="nb">frozenset</span><span class="p">([</span><span class="s1">&#39;libc.so.6&#39;</span><span class="p">])</span>
+
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">lib_path</span><span class="p">)</span> <span class="k">as</span> <span class="n">fn</span><span class="p">:</span>
+        <span class="n">_libraries</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">fn</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
+
+    <span class="k">return</span> <span class="n">_libraries</span>
+
+
+<div class="viewcode-block" id="get_dependencies"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.libraries.get_dependencies">[docs]</a><span class="k">def</span> <span class="nf">get_dependencies</span><span class="p">(</span><span class="n">elf</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return a list of libraries that are needed to satisfy elf&#39;s runtime.</span>
+
+<span class="sd">    This may include libraries contained within the project.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Getting dependencies for {!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">elf</span><span class="p">))</span>
+    <span class="n">ldd_out</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">ldd_out</span> <span class="o">=</span> <span class="n">common</span><span class="o">.</span><span class="n">run_output</span><span class="p">([</span><span class="s1">&#39;ldd&#39;</span><span class="p">,</span> <span class="n">elf</span><span class="p">])</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">CalledProcessError</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="s1">&#39;Unable to determine library dependencies for {!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">elf</span><span class="p">))</span>
+        <span class="k">return</span> <span class="p">[]</span>
+    <span class="n">ldd_out</span> <span class="o">=</span> <span class="p">[</span><span class="n">l</span><span class="o">.</span><span class="n">split</span><span class="p">()</span> <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">ldd_out</span><span class="p">]</span>
+    <span class="n">ldd_out</span> <span class="o">=</span> <span class="p">[</span><span class="n">l</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">ldd_out</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">l</span><span class="p">[</span><span class="mi">2</span><span class="p">])]</span>
+
+    <span class="c1"># Now lets filter out what would be on the system</span>
+    <span class="n">system_libs</span> <span class="o">=</span> <span class="n">_get_system_libs</span><span class="p">()</span>
+    <span class="n">libs</span> <span class="o">=</span> <span class="p">[</span><span class="n">l</span> <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">ldd_out</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">l</span><span class="p">)</span> <span class="ow">in</span> <span class="n">system_libs</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">libs</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  <li><a href="../../snapcraft.html">snapcraft</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

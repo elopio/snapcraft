@@ -1,0 +1,10 @@
+snapcraft.internal.cache package
+================================
+
+Module contents
+---------------
+
+.. automodule:: snapcraft.internal.cache
+    :members:
+    :undoc-members:
+    :show-inheritance:

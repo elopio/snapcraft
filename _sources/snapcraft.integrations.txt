@@ -1,0 +1,29 @@
+snapcraft.integrations package
+==============================
+
+Subpackages
+-----------
+
+.. toctree::
+
+    snapcraft.integrations.tests
+
+Submodules
+----------
+
+snapcraft.integrations.travis module
+------------------------------------
+
+.. automodule:: snapcraft.integrations.travis
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Module contents
+---------------
+
+.. automodule:: snapcraft.integrations
+    :members:
+    :undoc-members:
+    :show-inheritance:

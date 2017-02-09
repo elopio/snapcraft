@@ -1,0 +1,367 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.integrations.tests.test_travis &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../../../index.html" />
+    <link rel="up" title="snapcraft.integrations" href="../../integrations.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.integrations.tests.test_travis</h1><div class="highlight"><pre>
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2016 Canonical Ltd</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">from</span> <span class="nn">unittest</span> <span class="kn">import</span> <span class="n">mock</span>
+
+<span class="kn">import</span> <span class="nn">fixtures</span>
+<span class="kn">import</span> <span class="nn">yaml</span>
+
+<span class="kn">from</span> <span class="nn">snapcraft</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">storeapi</span><span class="p">,</span>
+    <span class="n">tests</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">snapcraft.integrations</span> <span class="kn">import</span> <span class="n">travis</span>
+<span class="kn">from</span> <span class="nn">snapcraft.internal.errors</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">RequiredCommandFailure</span><span class="p">,</span>
+    <span class="n">RequiredCommandNotFound</span><span class="p">,</span>
+    <span class="n">RequiredPathDoesNotExist</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">test_snapcraft_yaml</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">name: foo</span>
+<span class="s2">version: 1</span>
+<span class="s2">summary: a summary</span>
+<span class="s2">description: a description</span>
+<span class="s2">confinement: strict</span>
+<span class="s2">grade: stable</span>
+<span class="s2">parts:</span>
+<span class="s2">  foo:</span>
+<span class="s2">    plugin: nil</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="TravisPreconditionsTestCase"><a class="viewcode-back" href="../../../../snapcraft.integrations.tests.html#snapcraft.integrations.tests.test_travis.TravisPreconditionsTestCase">[docs]</a><span class="k">class</span> <span class="nc">TravisPreconditionsTestCase</span><span class="p">(</span><span class="n">tests</span><span class="o">.</span><span class="n">TestCase</span><span class="p">):</span>
+
+    <span class="n">scenarios</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s1">&#39;enable&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;entry_point&#39;</span><span class="p">:</span> <span class="s1">&#39;enable&#39;</span><span class="p">}),</span>
+        <span class="p">(</span><span class="s1">&#39;refresh&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;entry_point&#39;</span><span class="p">:</span> <span class="s1">&#39;refresh&#39;</span><span class="p">}),</span>
+    <span class="p">]</span>
+
+<div class="viewcode-block" id="TravisPreconditionsTestCase.run_command"><a class="viewcode-back" href="../../../../snapcraft.integrations.tests.html#snapcraft.integrations.tests.test_travis.TravisPreconditionsTestCase.run_command">[docs]</a>    <span class="k">def</span> <span class="nf">run_command</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cmd</span><span class="p">):</span>
+        <span class="nb">getattr</span><span class="p">(</span><span class="n">travis</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)()</span></div>
+
+    <span class="nd">@mock.patch</span><span class="p">(</span><span class="s1">&#39;subprocess.check_call&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="TravisPreconditionsTestCase.test_missing_travis_cli"><a class="viewcode-back" href="../../../../snapcraft.integrations.tests.html#snapcraft.integrations.tests.test_travis.TravisPreconditionsTestCase.test_missing_travis_cli">[docs]</a>    <span class="k">def</span> <span class="nf">test_missing_travis_cli</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mock_check_call</span><span class="p">):</span>
+        <span class="n">mock_check_call</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="p">[</span><span class="n">FileNotFoundError</span><span class="p">()]</span>
+
+        <span class="n">raised</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">assertRaises</span><span class="p">(</span>
+            <span class="n">RequiredCommandNotFound</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">run_command</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">entry_point</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">([</span>
+            <span class="s1">&#39;Travis CLI (`travis`) is not available.&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;Please install it before trying this command again:&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;    $ sudo apt install ruby-dev ruby-ffi libffi-dev&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;    $ sudo gem install travis&#39;</span>
+        <span class="p">],</span> <span class="nb">str</span><span class="p">(</span><span class="n">raised</span><span class="p">)</span><span class="o">.</span><span class="n">splitlines</span><span class="p">())</span></div>
+
+    <span class="nd">@mock.patch</span><span class="p">(</span><span class="s1">&#39;subprocess.check_call&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="TravisPreconditionsTestCase.test_broken_travis_cli"><a class="viewcode-back" href="../../../../snapcraft.integrations.tests.html#snapcraft.integrations.tests.test_travis.TravisPreconditionsTestCase.test_broken_travis_cli">[docs]</a>    <span class="k">def</span> <span class="nf">test_broken_travis_cli</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mock_check_call</span><span class="p">):</span>
+        <span class="n">mock_check_call</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">subprocess</span><span class="o">.</span><span class="n">CalledProcessError</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;test&#39;</span><span class="p">)]</span>
+
+        <span class="n">raised</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">assertRaises</span><span class="p">(</span>
+            <span class="n">RequiredCommandFailure</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">run_command</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">entry_point</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">([</span>
+            <span class="s1">&#39;Travis CLI (`travis settings`) is not functional or you are &#39;</span>
+            <span class="s1">&#39;not allowed to access this repository settings.&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;Make sure it works correctly in your system before trying this &#39;</span>
+            <span class="s1">&#39;command again.&#39;</span><span class="p">,</span>
+        <span class="p">],</span> <span class="nb">str</span><span class="p">(</span><span class="n">raised</span><span class="p">)</span><span class="o">.</span><span class="n">splitlines</span><span class="p">())</span></div>
+
+    <span class="nd">@mock.patch</span><span class="p">(</span><span class="s1">&#39;subprocess.check_call&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="TravisPreconditionsTestCase.test_missing_git"><a class="viewcode-back" href="../../../../snapcraft.integrations.tests.html#snapcraft.integrations.tests.test_travis.TravisPreconditionsTestCase.test_missing_git">[docs]</a>    <span class="k">def</span> <span class="nf">test_missing_git</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mock_check_call</span><span class="p">):</span>
+        <span class="n">mock_check_call</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="p">[</span><span class="bp">None</span><span class="p">,</span> <span class="n">FileNotFoundError</span><span class="p">()]</span>
+
+        <span class="n">raised</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">assertRaises</span><span class="p">(</span>
+            <span class="n">RequiredCommandNotFound</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">run_command</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">entry_point</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">([</span>
+            <span class="s1">&#39;Git (`git`) is not available, this tool cannot verify its &#39;</span>
+            <span class="s1">&#39;prerequisites.&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;Please install it before trying this command again:&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;    $ sudo apt install git&#39;</span><span class="p">,</span>
+        <span class="p">],</span> <span class="nb">str</span><span class="p">(</span><span class="n">raised</span><span class="p">)</span><span class="o">.</span><span class="n">splitlines</span><span class="p">())</span></div>
+
+    <span class="nd">@mock.patch</span><span class="p">(</span><span class="s1">&#39;subprocess.check_call&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="TravisPreconditionsTestCase.test_broken_git_repo"><a class="viewcode-back" href="../../../../snapcraft.integrations.tests.html#snapcraft.integrations.tests.test_travis.TravisPreconditionsTestCase.test_broken_git_repo">[docs]</a>    <span class="k">def</span> <span class="nf">test_broken_git_repo</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mock_check_call</span><span class="p">):</span>
+        <span class="n">mock_check_call</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="bp">None</span><span class="p">,</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">CalledProcessError</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;test&#39;</span><span class="p">)]</span>
+
+        <span class="n">raised</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">assertRaises</span><span class="p">(</span>
+            <span class="n">RequiredCommandFailure</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">run_command</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">entry_point</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">([</span>
+            <span class="s1">&#39;The current directory is not a Git repository.&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;Please switch to the desired project repository where &#39;</span>
+            <span class="s1">&#39;Travis should be enabled.&#39;</span><span class="p">,</span>
+        <span class="p">],</span> <span class="nb">str</span><span class="p">(</span><span class="n">raised</span><span class="p">)</span><span class="o">.</span><span class="n">splitlines</span><span class="p">())</span></div>
+
+    <span class="nd">@mock.patch</span><span class="p">(</span><span class="s1">&#39;subprocess.check_call&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="TravisPreconditionsTestCase.test_missing_travis_setup"><a class="viewcode-back" href="../../../../snapcraft.integrations.tests.html#snapcraft.integrations.tests.test_travis.TravisPreconditionsTestCase.test_missing_travis_setup">[docs]</a>    <span class="k">def</span> <span class="nf">test_missing_travis_setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mock_check_call</span><span class="p">):</span>
+        <span class="n">mock_check_call</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="p">[</span><span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">]</span>
+
+        <span class="n">raised</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">assertRaises</span><span class="p">(</span>
+            <span class="n">RequiredPathDoesNotExist</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">run_command</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">entry_point</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">([</span>
+            <span class="s1">&#39;Travis project is not initialized for the current directory.&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;Please initialize Travis project (e.g. `travis init`) with &#39;</span>
+            <span class="s1">&#39;appropriate parameters.&#39;</span><span class="p">,</span>
+        <span class="p">],</span> <span class="nb">str</span><span class="p">(</span><span class="n">raised</span><span class="p">)</span><span class="o">.</span><span class="n">splitlines</span><span class="p">())</span></div></div>
+
+
+<div class="viewcode-block" id="TravisSuccessfulTestCase"><a class="viewcode-back" href="../../../../snapcraft.integrations.tests.html#snapcraft.integrations.tests.test_travis.TravisSuccessfulTestCase">[docs]</a><span class="k">class</span> <span class="nc">TravisSuccessfulTestCase</span><span class="p">(</span><span class="n">tests</span><span class="o">.</span><span class="n">TestCase</span><span class="p">):</span>
+
+<div class="viewcode-block" id="TravisSuccessfulTestCase.setUp"><a class="viewcode-back" href="../../../../snapcraft.integrations.tests.html#snapcraft.integrations.tests.test_travis.TravisSuccessfulTestCase.setUp">[docs]</a>    <span class="k">def</span> <span class="nf">setUp</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">setUp</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fake_logger</span> <span class="o">=</span> <span class="n">fixtures</span><span class="o">.</span><span class="n">FakeLogger</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">useFixture</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fake_logger</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fake_terminal</span> <span class="o">=</span> <span class="n">tests</span><span class="o">.</span><span class="n">fixture_setup</span><span class="o">.</span><span class="n">FakeTerminal</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">useFixture</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fake_terminal</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TravisSuccessfulTestCase.make_travis_yml"><a class="viewcode-back" href="../../../../snapcraft.integrations.tests.html#snapcraft.integrations.tests.test_travis.TravisSuccessfulTestCase.make_travis_yml">[docs]</a>    <span class="k">def</span> <span class="nf">make_travis_yml</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">content</span><span class="p">):</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;.travis.yml&#39;</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fd</span><span class="p">:</span>
+            <span class="n">fd</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">content</span><span class="p">)</span></div>
+
+    <span class="nd">@mock.patch</span><span class="p">(</span><span class="s1">&#39;subprocess.check_output&#39;</span><span class="p">)</span>
+    <span class="nd">@mock.patch</span><span class="p">(</span><span class="s1">&#39;subprocess.check_call&#39;</span><span class="p">)</span>
+    <span class="nd">@mock.patch</span><span class="p">(</span><span class="s1">&#39;builtins.input&#39;</span><span class="p">)</span>
+    <span class="nd">@mock.patch</span><span class="p">(</span><span class="s1">&#39;getpass.getpass&#39;</span><span class="p">)</span>
+    <span class="nd">@mock.patch.object</span><span class="p">(</span><span class="n">storeapi</span><span class="o">.</span><span class="n">StoreClient</span><span class="p">,</span> <span class="s1">&#39;login&#39;</span><span class="p">)</span>
+    <span class="nd">@mock.patch.object</span><span class="p">(</span><span class="n">storeapi</span><span class="o">.</span><span class="n">SCAClient</span><span class="p">,</span> <span class="s1">&#39;get_account_information&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="TravisSuccessfulTestCase.test_enable_successfully"><a class="viewcode-back" href="../../../../snapcraft.integrations.tests.html#snapcraft.integrations.tests.test_travis.TravisSuccessfulTestCase.test_enable_successfully">[docs]</a>    <span class="k">def</span> <span class="nf">test_enable_successfully</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">mock_get_account_information</span><span class="p">,</span> <span class="n">mock_login</span><span class="p">,</span> <span class="n">mock_getpass</span><span class="p">,</span>
+            <span class="n">mock_input</span><span class="p">,</span> <span class="n">mock_check_call</span><span class="p">,</span> <span class="n">mock_check_output</span><span class="p">):</span>
+        <span class="n">mock_input</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;sample.person@canonical.com&#39;</span><span class="p">,</span> <span class="s1">&#39;123456&#39;</span><span class="p">]</span>
+        <span class="n">mock_getpass</span><span class="o">.</span><span class="n">return_value</span> <span class="o">=</span> <span class="s1">&#39;secret&#39;</span>
+        <span class="n">mock_login</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">storeapi</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">StoreTwoFactorAuthenticationRequired</span><span class="p">(),</span> <span class="bp">None</span><span class="p">]</span>
+        <span class="n">mock_get_account_information</span><span class="o">.</span><span class="n">return_value</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;account_id&#39;</span><span class="p">:</span> <span class="s1">&#39;abcd&#39;</span><span class="p">}</span>
+
+        <span class="n">mock_check_call</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="p">[</span><span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">]</span>
+        <span class="n">mock_check_output</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="p">[</span><span class="bp">None</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">make_snapcraft_yaml</span><span class="p">(</span><span class="n">test_snapcraft_yaml</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">make_travis_yml</span><span class="p">(</span><span class="s1">&#39;after_success: [&quot;&lt;travis-cli-decrypt&gt;&quot;]&#39;</span><span class="p">)</span>
+
+        <span class="n">travis</span><span class="o">.</span><span class="n">enable</span><span class="p">()</span>
+
+        <span class="c1"># Attenuated credentials requested from the Store.</span>
+        <span class="n">mock_login</span><span class="o">.</span><span class="n">assert_called_with</span><span class="p">(</span>
+            <span class="s1">&#39;sample.person@canonical.com&#39;</span><span class="p">,</span> <span class="s1">&#39;secret&#39;</span><span class="p">,</span>
+            <span class="n">one_time_password</span><span class="o">=</span><span class="s1">&#39;123456&#39;</span><span class="p">,</span> <span class="n">acls</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+            <span class="n">channels</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;edge&#39;</span><span class="p">],</span> <span class="n">packages</span><span class="o">=</span><span class="p">[{</span><span class="s1">&#39;series&#39;</span><span class="p">:</span> <span class="s1">&#39;16&#39;</span><span class="p">,</span> <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;foo&#39;</span><span class="p">}])</span>
+
+        <span class="c1"># Credentials encrypted with travis CLI.</span>
+        <span class="n">mock_check_output</span><span class="o">.</span><span class="n">assert_called_with</span><span class="p">(</span>
+            <span class="p">[</span><span class="s1">&#39;travis&#39;</span><span class="p">,</span> <span class="s1">&#39;encrypt-file&#39;</span><span class="p">,</span> <span class="s1">&#39;--force&#39;</span><span class="p">,</span>
+             <span class="s1">&#39;--add&#39;</span><span class="p">,</span> <span class="s1">&#39;after_success&#39;</span><span class="p">,</span> <span class="s1">&#39;--decrypt-to&#39;</span><span class="p">,</span>
+             <span class="n">travis</span><span class="o">.</span><span class="n">LOCAL_CONFIG_FILENAME</span><span class="p">,</span>
+             <span class="n">mock</span><span class="o">.</span><span class="n">ANY</span><span class="p">,</span> <span class="n">travis</span><span class="o">.</span><span class="n">ENCRYPTED_CONFIG_FILENAME</span><span class="p">],</span>
+            <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">)</span>
+
+        <span class="c1"># &#39;.travis.yml&#39; updated for snap CI.</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;.travis.yml&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fd</span><span class="p">:</span>
+            <span class="n">travis_conf</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fd</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="s1">&#39;required&#39;</span><span class="p">,</span> <span class="n">travis_conf</span><span class="p">[</span><span class="s1">&#39;sudo&#39;</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">([</span><span class="s1">&#39;docker&#39;</span><span class="p">],</span> <span class="n">travis_conf</span><span class="p">[</span><span class="s1">&#39;services&#39;</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">([</span>
+                <span class="s1">&#39;&lt;travis-cli-decrypt&gt;&#39;</span><span class="p">,</span>
+            <span class="p">],</span> <span class="n">travis_conf</span><span class="p">[</span><span class="s1">&#39;after_success&#39;</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">({</span>
+                <span class="s1">&#39;skip_cleanup&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+                <span class="s1">&#39;provider&#39;</span><span class="p">:</span> <span class="s1">&#39;script&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;script&#39;</span><span class="p">:</span> <span class="p">(</span>
+                    <span class="s1">&#39;docker run -v $(pwd):$(pwd) -t ubuntu:xenial sh -c &#39;</span>
+                    <span class="s1">&#39;&quot;apt update -qq &amp;&amp; apt install snapcraft -y &amp;&amp; &#39;</span>
+                    <span class="s1">&#39;cd $(pwd) &amp;&amp; &#39;</span>
+                    <span class="s1">&#39;snapcraft &amp;&amp; snapcraft push *.snap --release edge&quot;&#39;</span><span class="p">),</span>
+                <span class="s1">&#39;on&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;branch&#39;</span><span class="p">:</span> <span class="s1">&#39;master&#39;</span><span class="p">,</span>
+                <span class="p">},</span>
+            <span class="p">},</span> <span class="n">travis_conf</span><span class="p">[</span><span class="s1">&#39;deploy&#39;</span><span class="p">])</span>
+
+        <span class="c1"># Descriptive logging ...</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">([</span>
+            <span class="s2">&quot;Enabling Travis testbeds to push and release &#39;foo&#39; snaps &quot;</span>
+            <span class="s2">&quot;to edge channel in series &#39;16&#39;&quot;</span><span class="p">,</span>
+            <span class="s1">&#39;Acquiring specific authorization information ...&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;Login successful.&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;Encrypting authorization for Travis and adjusting project &#39;</span>
+            <span class="s1">&#39;to automatically decrypt and use it during &quot;after_success&quot;.&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;Configuring &quot;deploy&quot; phase to build and release the snap in &#39;</span>
+            <span class="s1">&#39;the Store.&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;Done. Now you just have to review and commit changes in your &#39;</span>
+            <span class="s1">&#39;Travis project (`.travis.yml`).&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;Also make sure you add the new &#39;</span>
+            <span class="s1">&#39;`.snapcraft/travis_snapcraft.cfg` file.&#39;</span><span class="p">,</span>
+        <span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">fake_logger</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">splitlines</span><span class="p">()[</span><span class="mi">1</span><span class="p">:])</span></div>
+
+    <span class="nd">@mock.patch</span><span class="p">(</span><span class="s1">&#39;subprocess.check_output&#39;</span><span class="p">)</span>
+    <span class="nd">@mock.patch</span><span class="p">(</span><span class="s1">&#39;subprocess.check_call&#39;</span><span class="p">)</span>
+    <span class="nd">@mock.patch</span><span class="p">(</span><span class="s1">&#39;builtins.input&#39;</span><span class="p">)</span>
+    <span class="nd">@mock.patch</span><span class="p">(</span><span class="s1">&#39;getpass.getpass&#39;</span><span class="p">)</span>
+    <span class="nd">@mock.patch.object</span><span class="p">(</span><span class="n">storeapi</span><span class="o">.</span><span class="n">StoreClient</span><span class="p">,</span> <span class="s1">&#39;login&#39;</span><span class="p">)</span>
+    <span class="nd">@mock.patch.object</span><span class="p">(</span><span class="n">storeapi</span><span class="o">.</span><span class="n">SCAClient</span><span class="p">,</span> <span class="s1">&#39;get_account_information&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="TravisSuccessfulTestCase.test_refresh_successfully"><a class="viewcode-back" href="../../../../snapcraft.integrations.tests.html#snapcraft.integrations.tests.test_travis.TravisSuccessfulTestCase.test_refresh_successfully">[docs]</a>    <span class="k">def</span> <span class="nf">test_refresh_successfully</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">mock_get_account_information</span><span class="p">,</span> <span class="n">mock_login</span><span class="p">,</span> <span class="n">mock_getpass</span><span class="p">,</span>
+            <span class="n">mock_input</span><span class="p">,</span> <span class="n">mock_check_call</span><span class="p">,</span> <span class="n">mock_check_output</span><span class="p">):</span>
+        <span class="n">mock_input</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;sample.person@canonical.com&#39;</span><span class="p">,</span> <span class="s1">&#39;123456&#39;</span><span class="p">]</span>
+        <span class="n">mock_getpass</span><span class="o">.</span><span class="n">return_value</span> <span class="o">=</span> <span class="s1">&#39;secret&#39;</span>
+        <span class="n">mock_login</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">storeapi</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">StoreTwoFactorAuthenticationRequired</span><span class="p">(),</span> <span class="bp">None</span><span class="p">]</span>
+        <span class="n">mock_get_account_information</span><span class="o">.</span><span class="n">return_value</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;account_id&#39;</span><span class="p">:</span> <span class="s1">&#39;abcd&#39;</span><span class="p">}</span>
+
+        <span class="n">mock_check_call</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="p">[</span><span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">]</span>
+        <span class="n">mock_check_output</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="p">[</span><span class="bp">None</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">make_snapcraft_yaml</span><span class="p">(</span><span class="n">test_snapcraft_yaml</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">make_travis_yml</span><span class="p">(</span><span class="s1">&#39;after_success: [&quot;&lt;travis-cli-decrypt&gt;&quot;]&#39;</span><span class="p">)</span>
+
+        <span class="n">travis</span><span class="o">.</span><span class="n">refresh</span><span class="p">()</span>
+
+        <span class="c1"># Attenuated credentials requested from the Store.</span>
+        <span class="n">mock_login</span><span class="o">.</span><span class="n">assert_called_with</span><span class="p">(</span>
+            <span class="s1">&#39;sample.person@canonical.com&#39;</span><span class="p">,</span> <span class="s1">&#39;secret&#39;</span><span class="p">,</span>
+            <span class="n">one_time_password</span><span class="o">=</span><span class="s1">&#39;123456&#39;</span><span class="p">,</span> <span class="n">acls</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+            <span class="n">channels</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;edge&#39;</span><span class="p">],</span> <span class="n">packages</span><span class="o">=</span><span class="p">[{</span><span class="s1">&#39;series&#39;</span><span class="p">:</span> <span class="s1">&#39;16&#39;</span><span class="p">,</span> <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;foo&#39;</span><span class="p">}])</span>
+
+        <span class="c1"># Credentials encrypted with travis CLI.</span>
+        <span class="n">mock_check_output</span><span class="o">.</span><span class="n">assert_called_with</span><span class="p">(</span>
+            <span class="p">[</span><span class="s1">&#39;travis&#39;</span><span class="p">,</span> <span class="s1">&#39;encrypt-file&#39;</span><span class="p">,</span> <span class="s1">&#39;--force&#39;</span><span class="p">,</span>
+             <span class="s1">&#39;--add&#39;</span><span class="p">,</span> <span class="s1">&#39;after_success&#39;</span><span class="p">,</span> <span class="s1">&#39;--decrypt-to&#39;</span><span class="p">,</span>
+             <span class="n">travis</span><span class="o">.</span><span class="n">LOCAL_CONFIG_FILENAME</span><span class="p">,</span>
+             <span class="n">mock</span><span class="o">.</span><span class="n">ANY</span><span class="p">,</span> <span class="n">travis</span><span class="o">.</span><span class="n">ENCRYPTED_CONFIG_FILENAME</span><span class="p">],</span>
+            <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">)</span>
+
+        <span class="c1"># &#39;.travis.yml&#39; updated only with the decrypt command.</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;.travis.yml&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fd</span><span class="p">:</span>
+            <span class="n">travis_conf</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fd</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">([</span>
+                <span class="s1">&#39;&lt;travis-cli-decrypt&gt;&#39;</span><span class="p">,</span>
+            <span class="p">],</span> <span class="n">travis_conf</span><span class="p">[</span><span class="s1">&#39;after_success&#39;</span><span class="p">])</span>
+
+        <span class="c1"># Descriptive logging ...</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">([</span>
+            <span class="s1">&#39;Refreshing credentials to push and release &quot;foo&quot; snaps to &#39;</span>
+            <span class="s1">&#39;edge channel in series 16&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;Acquiring specific authorization information ...&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;Login successful.&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;Encrypting authorization for Travis and adjusting project &#39;</span>
+            <span class="s1">&#39;to automatically decrypt and use it during &quot;after_success&quot;.&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;Done. Please commit the changes to &#39;</span>
+            <span class="s1">&#39;`.snapcraft/travis_snapcraft.cfg` file.&#39;</span><span class="p">,</span>
+        <span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">fake_logger</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">splitlines</span><span class="p">()[</span><span class="mi">1</span><span class="p">:])</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../../index.html">Module code</a><ul>
+  <li><a href="../../../snapcraft.html">snapcraft</a><ul>
+  <li><a href="../../integrations.html">snapcraft.integrations</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

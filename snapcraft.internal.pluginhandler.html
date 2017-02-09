@@ -1,0 +1,308 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.internal.pluginhandler package &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="index.html" />
+    <link rel="up" title="snapcraft.internal package" href="snapcraft.internal.html" />
+    <link rel="next" title="snapcraft.internal.pluginhandler.stage_package_grammar package" href="snapcraft.internal.pluginhandler.stage_package_grammar.html" />
+    <link rel="prev" title="snapcraft.internal.deltas package" href="snapcraft.internal.deltas.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="snapcraft-internal-pluginhandler-package">
+<h1>snapcraft.internal.pluginhandler package<a class="headerlink" href="#snapcraft-internal-pluginhandler-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="subpackages">
+<h2>Subpackages<a class="headerlink" href="#subpackages" title="Permalink to this headline">¶</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="snapcraft.internal.pluginhandler.stage_package_grammar.html">snapcraft.internal.pluginhandler.stage_package_grammar package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="snapcraft.internal.pluginhandler.stage_package_grammar.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="snapcraft.internal.pluginhandler.stage_package_grammar.html#module-snapcraft.internal.pluginhandler.stage_package_grammar.errors">snapcraft.internal.pluginhandler.stage_package_grammar.errors module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="snapcraft.internal.pluginhandler.stage_package_grammar.html#module-snapcraft.internal.pluginhandler.stage_package_grammar">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div class="section" id="module-snapcraft.internal.pluginhandler">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-snapcraft.internal.pluginhandler" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="snapcraft.internal.pluginhandler.DirtyReport">
+<em class="property">class </em><code class="descclassname">snapcraft.internal.pluginhandler.</code><code class="descname">DirtyReport</code><span class="sig-paren">(</span><em>dirty_properties</em>, <em>dirty_project_options</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#DirtyReport"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.DirtyReport" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+</dd></dl>
+
+<dl class="class">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler">
+<em class="property">class </em><code class="descclassname">snapcraft.internal.pluginhandler.</code><code class="descname">PluginHandler</code><span class="sig-paren">(</span><em>*</em>, <em>plugin_name</em>, <em>part_name</em>, <em>part_properties</em>, <em>project_options</em>, <em>part_schema</em>, <em>definitions_schema</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.build">
+<code class="descname">build</code><span class="sig-paren">(</span><em>force=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.clean">
+<code class="descname">clean</code><span class="sig-paren">(</span><em>project_staged_state=None</em>, <em>project_primed_state=None</em>, <em>step=None</em>, <em>hint=''</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.clean"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.clean" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.clean_build">
+<code class="descname">clean_build</code><span class="sig-paren">(</span><em>hint=''</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.clean_build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.clean_build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.clean_prime">
+<code class="descname">clean_prime</code><span class="sig-paren">(</span><em>project_primed_state</em>, <em>hint=''</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.clean_prime"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.clean_prime" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.clean_pull">
+<code class="descname">clean_pull</code><span class="sig-paren">(</span><em>hint=''</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.clean_pull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.clean_pull" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.clean_stage">
+<code class="descname">clean_stage</code><span class="sig-paren">(</span><em>project_staged_state</em>, <em>hint=''</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.clean_stage"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.clean_stage" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.env">
+<code class="descname">env</code><span class="sig-paren">(</span><em>root</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.env"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.env" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.get_dirty_report">
+<code class="descname">get_dirty_report</code><span class="sig-paren">(</span><em>step</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.get_dirty_report"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.get_dirty_report" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a DirtyReport class describing why step is dirty.</p>
+<p>Returns None if step is not dirty.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.get_primed_dependency_paths">
+<code class="descname">get_primed_dependency_paths</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.get_primed_dependency_paths"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.get_primed_dependency_paths" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.get_state">
+<code class="descname">get_state</code><span class="sig-paren">(</span><em>step</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.get_state"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.get_state" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.installdir">
+<code class="descname">installdir</code><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.installdir" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.is_clean">
+<code class="descname">is_clean</code><span class="sig-paren">(</span><em>step</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.is_clean"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.is_clean" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return true if the given step hasn&#8217;t run (or has been cleaned).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.is_dirty">
+<code class="descname">is_dirty</code><span class="sig-paren">(</span><em>step</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.is_dirty"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.is_dirty" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return true if the given step needs to run again.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.last_step">
+<code class="descname">last_step</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.last_step"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.last_step" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.makedirs">
+<code class="descname">makedirs</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.makedirs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.makedirs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.mark_build_done">
+<code class="descname">mark_build_done</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.mark_build_done"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.mark_build_done" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.mark_cleaned">
+<code class="descname">mark_cleaned</code><span class="sig-paren">(</span><em>step</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.mark_cleaned"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.mark_cleaned" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.mark_done">
+<code class="descname">mark_done</code><span class="sig-paren">(</span><em>step</em>, <em>state=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.mark_done"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.mark_done" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.mark_prime_done">
+<code class="descname">mark_prime_done</code><span class="sig-paren">(</span><em>snap_files</em>, <em>snap_dirs</em>, <em>dependency_paths</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.mark_prime_done"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.mark_prime_done" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.mark_pull_done">
+<code class="descname">mark_pull_done</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.mark_pull_done"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.mark_pull_done" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.mark_stage_done">
+<code class="descname">mark_stage_done</code><span class="sig-paren">(</span><em>snap_files</em>, <em>snap_dirs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.mark_stage_done"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.mark_stage_done" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.migratable_fileset_for">
+<code class="descname">migratable_fileset_for</code><span class="sig-paren">(</span><em>step</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.migratable_fileset_for"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.migratable_fileset_for" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.name">
+<code class="descname">name</code><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.notify_part_progress">
+<code class="descname">notify_part_progress</code><span class="sig-paren">(</span><em>progress</em>, <em>hint=''</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.notify_part_progress"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.notify_part_progress" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.prepare_build">
+<code class="descname">prepare_build</code><span class="sig-paren">(</span><em>force=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.prepare_build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.prepare_build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.prepare_pull">
+<code class="descname">prepare_pull</code><span class="sig-paren">(</span><em>force=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.prepare_pull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.prepare_pull" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.prime">
+<code class="descname">prime</code><span class="sig-paren">(</span><em>force=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.prime"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.prime" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.pull">
+<code class="descname">pull</code><span class="sig-paren">(</span><em>force=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.pull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.pull" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.should_step_run">
+<code class="descname">should_step_run</code><span class="sig-paren">(</span><em>step</em>, <em>force=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.should_step_run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.should_step_run" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.pluginhandler.PluginHandler.stage">
+<code class="descname">stage</code><span class="sig-paren">(</span><em>force=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#PluginHandler.stage"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.PluginHandler.stage" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.pluginhandler.check_for_collisions">
+<code class="descclassname">snapcraft.internal.pluginhandler.</code><code class="descname">check_for_collisions</code><span class="sig-paren">(</span><em>parts</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#check_for_collisions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.check_for_collisions" title="Permalink to this definition">¶</a></dt>
+<dd><p>Raises an EnvironmentError if conflicts are found between two parts.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.pluginhandler.load_plugin">
+<code class="descclassname">snapcraft.internal.pluginhandler.</code><code class="descname">load_plugin</code><span class="sig-paren">(</span><em>part_name</em>, <em>*</em>, <em>plugin_name</em>, <em>part_properties=None</em>, <em>project_options=None</em>, <em>part_schema=None</em>, <em>definitions_schema=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/pluginhandler.html#load_plugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.pluginhandler.load_plugin" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">snapcraft.internal.pluginhandler package</a><ul>
+<li><a class="reference internal" href="#subpackages">Subpackages</a></li>
+<li><a class="reference internal" href="#module-snapcraft.internal.pluginhandler">Module contents</a></li>
+</ul>
+</li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  <li><a href="modules.html">snapcraft</a><ul>
+  <li><a href="snapcraft.html">snapcraft package</a><ul>
+  <li><a href="snapcraft.internal.html">snapcraft.internal package</a><ul>
+      <li>Previous: <a href="snapcraft.internal.deltas.html" title="previous chapter">snapcraft.internal.deltas package</a></li>
+      <li>Next: <a href="snapcraft.internal.pluginhandler.stage_package_grammar.html" title="next chapter">snapcraft.internal.pluginhandler.stage_package_grammar package</a></li>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/snapcraft.internal.pluginhandler.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+      |
+      <a href="_sources/snapcraft.internal.pluginhandler.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

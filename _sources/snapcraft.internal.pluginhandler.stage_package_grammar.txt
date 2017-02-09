@@ -1,0 +1,22 @@
+snapcraft.internal.pluginhandler.stage_package_grammar package
+==============================================================
+
+Submodules
+----------
+
+snapcraft.internal.pluginhandler.stage_package_grammar.errors module
+--------------------------------------------------------------------
+
+.. automodule:: snapcraft.internal.pluginhandler.stage_package_grammar.errors
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Module contents
+---------------
+
+.. automodule:: snapcraft.internal.pluginhandler.stage_package_grammar
+    :members:
+    :undoc-members:
+    :show-inheritance:

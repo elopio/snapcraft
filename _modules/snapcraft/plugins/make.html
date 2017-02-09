@@ -1,0 +1,216 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.plugins.make &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../../index.html" />
+    <link rel="up" title="snapcraft" href="../../snapcraft.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.plugins.make</h1><div class="highlight"><pre>
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2015-2016 Canonical Ltd</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="sd">&quot;&quot;&quot;The make plugin is useful for building make based parts.</span>
+
+<span class="sd">Make based projects are projects that have a Makefile that drives the</span>
+<span class="sd">build.</span>
+
+<span class="sd">This plugin always runs &#39;make&#39; followed by &#39;make install&#39;, except when</span>
+<span class="sd">the &#39;artifacts&#39; keyword is used.</span>
+
+<span class="sd">This plugin uses the common plugin keywords as well as those for &quot;sources&quot;.</span>
+<span class="sd">For more information check the &#39;plugins&#39; topic for the former and the</span>
+<span class="sd">&#39;sources&#39; topic for the latter.</span>
+
+<span class="sd">Additionally, this plugin uses the following plugin-specific keywords:</span>
+
+<span class="sd">    - artifacts:</span>
+<span class="sd">      (list)</span>
+<span class="sd">      Link/copy the given files from the make output to the snap</span>
+<span class="sd">      installation directory. If specified, the &#39;make install&#39;</span>
+<span class="sd">      step will be skipped.</span>
+
+<span class="sd">    - makefile:</span>
+<span class="sd">      (string)</span>
+<span class="sd">      Use the given file as the makefile.</span>
+
+<span class="sd">    - make-parameters:</span>
+<span class="sd">      (list of strings)</span>
+<span class="sd">      Pass the given parameters to the make command.</span>
+
+<span class="sd">    - make-install-var:</span>
+<span class="sd">      (string; default: DESTDIR)</span>
+<span class="sd">      Use this variable to redirect the installation into the snap.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">snapcraft</span>
+<span class="kn">import</span> <span class="nn">snapcraft.common</span>
+
+
+<div class="viewcode-block" id="MakePlugin"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.make.MakePlugin">[docs]</a><span class="k">class</span> <span class="nc">MakePlugin</span><span class="p">(</span><span class="n">snapcraft</span><span class="o">.</span><span class="n">BasePlugin</span><span class="p">):</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="MakePlugin.schema"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.make.MakePlugin.schema">[docs]</a>    <span class="k">def</span> <span class="nf">schema</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">schema</span><span class="p">()</span>
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;makefile&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;make-parameters&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;array&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;minitems&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s1">&#39;uniqueItems&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+            <span class="s1">&#39;items&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="p">}</span>
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;make-install-var&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;DESTDIR&#39;</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;artifacts&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;array&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;minitems&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s1">&#39;uniqueItems&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+            <span class="s1">&#39;items&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">schema</span></div>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="MakePlugin.get_build_properties"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.make.MakePlugin.get_build_properties">[docs]</a>    <span class="k">def</span> <span class="nf">get_build_properties</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="c1"># Inform Snapcraft of the properties associated with building. If these</span>
+        <span class="c1"># change in the YAML Snapcraft will consider the build step dirty.</span>
+        <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;makefile&#39;</span><span class="p">,</span> <span class="s1">&#39;make-parameters&#39;</span><span class="p">,</span> <span class="s1">&#39;make-install-var&#39;</span><span class="p">,</span> <span class="s1">&#39;artifacts&#39;</span><span class="p">]</span></div>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">options</span><span class="p">,</span> <span class="n">project</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">options</span><span class="p">,</span> <span class="n">project</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">build_packages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;make&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="MakePlugin.make"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.make.MakePlugin.make">[docs]</a>    <span class="k">def</span> <span class="nf">make</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="n">command</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;make&#39;</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">makefile</span><span class="p">:</span>
+            <span class="n">command</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s1">&#39;-f&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">makefile</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">make_parameters</span><span class="p">:</span>
+            <span class="n">command</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">make_parameters</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">command</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;-j{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parallel_build_count</span><span class="p">)],</span> <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">artifacts</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">artifact</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">artifacts</span><span class="p">:</span>
+                <span class="n">source_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">builddir</span><span class="p">,</span> <span class="n">artifact</span><span class="p">)</span>
+                <span class="n">destination_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="n">artifact</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">source_path</span><span class="p">):</span>
+                    <span class="n">snapcraft</span><span class="o">.</span><span class="n">file_utils</span><span class="o">.</span><span class="n">link_or_copy_tree</span><span class="p">(</span>
+                        <span class="n">source_path</span><span class="p">,</span> <span class="n">destination_path</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">snapcraft</span><span class="o">.</span><span class="n">file_utils</span><span class="o">.</span><span class="n">link_or_copy</span><span class="p">(</span>
+                        <span class="n">source_path</span><span class="p">,</span> <span class="n">destination_path</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">command</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;install&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">make_install_var</span><span class="p">:</span>
+                <span class="n">command</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;{}={}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">make_install_var</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">))</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">command</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="MakePlugin.build"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.make.MakePlugin.build">[docs]</a>    <span class="k">def</span> <span class="nf">build</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">build</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">make</span><span class="p">()</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  <li><a href="../../snapcraft.html">snapcraft</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

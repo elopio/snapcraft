@@ -1,0 +1,230 @@
+snapcraft.plugins package
+=========================
+
+Submodules
+----------
+
+snapcraft.plugins.ant module
+----------------------------
+
+.. automodule:: snapcraft.plugins.ant
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.autotools module
+----------------------------------
+
+.. automodule:: snapcraft.plugins.autotools
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.catkin module
+-------------------------------
+
+.. automodule:: snapcraft.plugins.catkin
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.cmake module
+------------------------------
+
+.. automodule:: snapcraft.plugins.cmake
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.copy module
+-----------------------------
+
+.. automodule:: snapcraft.plugins.copy
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.dump module
+-----------------------------
+
+.. automodule:: snapcraft.plugins.dump
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.go module
+---------------------------
+
+.. automodule:: snapcraft.plugins.go
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.godeps module
+-------------------------------
+
+.. automodule:: snapcraft.plugins.godeps
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.gradle module
+-------------------------------
+
+.. automodule:: snapcraft.plugins.gradle
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.gulp module
+-----------------------------
+
+.. automodule:: snapcraft.plugins.gulp
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.jdk module
+----------------------------
+
+.. automodule:: snapcraft.plugins.jdk
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.kbuild module
+-------------------------------
+
+.. automodule:: snapcraft.plugins.kbuild
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.kernel module
+-------------------------------
+
+.. automodule:: snapcraft.plugins.kernel
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.make module
+-----------------------------
+
+.. automodule:: snapcraft.plugins.make
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.maven module
+------------------------------
+
+.. automodule:: snapcraft.plugins.maven
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.nil module
+----------------------------
+
+.. automodule:: snapcraft.plugins.nil
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.nodejs module
+-------------------------------
+
+.. automodule:: snapcraft.plugins.nodejs
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.plainbox_provider module
+------------------------------------------
+
+.. automodule:: snapcraft.plugins.plainbox_provider
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.python module
+-------------------------------
+
+.. automodule:: snapcraft.plugins.python
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.python2 module
+--------------------------------
+
+.. automodule:: snapcraft.plugins.python2
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.python3 module
+--------------------------------
+
+.. automodule:: snapcraft.plugins.python3
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.qbs module
+----------------------------
+
+.. automodule:: snapcraft.plugins.qbs
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.qmake module
+------------------------------
+
+.. automodule:: snapcraft.plugins.qmake
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.rust module
+-----------------------------
+
+.. automodule:: snapcraft.plugins.rust
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.scons module
+------------------------------
+
+.. automodule:: snapcraft.plugins.scons
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.tar_content module
+------------------------------------
+
+.. automodule:: snapcraft.plugins.tar_content
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.plugins.waf module
+----------------------------
+
+.. automodule:: snapcraft.plugins.waf
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Module contents
+---------------
+
+.. automodule:: snapcraft.plugins
+    :members:
+    :undoc-members:
+    :show-inheritance:

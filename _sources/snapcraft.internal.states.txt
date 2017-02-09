@@ -1,0 +1,10 @@
+snapcraft.internal.states package
+=================================
+
+Module contents
+---------------
+
+.. automodule:: snapcraft.internal.states
+    :members:
+    :undoc-members:
+    :show-inheritance:

@@ -1,0 +1,17 @@
+snapcraft.internal.pluginhandler package
+========================================
+
+Subpackages
+-----------
+
+.. toctree::
+
+    snapcraft.internal.pluginhandler.stage_package_grammar
+
+Module contents
+---------------
+
+.. automodule:: snapcraft.internal.pluginhandler
+    :members:
+    :undoc-members:
+    :show-inheritance:

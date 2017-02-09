@@ -1,0 +1,22 @@
+snapcraft.integrations.tests package
+====================================
+
+Submodules
+----------
+
+snapcraft.integrations.tests.test_travis module
+-----------------------------------------------
+
+.. automodule:: snapcraft.integrations.tests.test_travis
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Module contents
+---------------
+
+.. automodule:: snapcraft.integrations.tests
+    :members:
+    :undoc-members:
+    :show-inheritance:

@@ -1,0 +1,215 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.plugins.gradle &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../../index.html" />
+    <link rel="up" title="snapcraft" href="../../snapcraft.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.plugins.gradle</h1><div class="highlight"><pre>
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2016 Canonical Ltd</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="sd">&quot;&quot;&quot;This plugin is useful for building parts that use gradle.</span>
+
+<span class="sd">The gradle build system is commonly used to build Java projects.</span>
+<span class="sd">The plugin requires a pom.xml in the root of the source tree.</span>
+
+<span class="sd">This plugin uses the common plugin keywords as well as those for &quot;sources&quot;.</span>
+<span class="sd">For more information check the &#39;plugins&#39; topic for the former and the</span>
+<span class="sd">&#39;sources&#39; topic for the latter.</span>
+
+<span class="sd">Additionally, this plugin uses the following plugin-specific keywords:</span>
+
+<span class="sd">    - gradle-options:</span>
+<span class="sd">      (list of strings)</span>
+<span class="sd">      Flags to pass to the build using the gradle semantics for parameters.</span>
+<span class="sd">      The &#39;jar&#39; option is always passed in as the last parameter.</span>
+
+<span class="sd">    - gradle-output-dir:</span>
+<span class="sd">      (string; default: &#39;build/libs&#39;)</span>
+<span class="sd">      The output directory where the resulting jar or war files from gradle[w]</span>
+<span class="sd">      are generated.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">glob</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">urllib.parse</span>
+<span class="kn">import</span> <span class="nn">snapcraft</span>
+<span class="kn">import</span> <span class="nn">snapcraft.common</span>
+<span class="kn">import</span> <span class="nn">snapcraft.plugins.jdk</span>
+
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="GradlePlugin"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.gradle.GradlePlugin">[docs]</a><span class="k">class</span> <span class="nc">GradlePlugin</span><span class="p">(</span><span class="n">snapcraft</span><span class="o">.</span><span class="n">plugins</span><span class="o">.</span><span class="n">jdk</span><span class="o">.</span><span class="n">JdkPlugin</span><span class="p">):</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="GradlePlugin.schema"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.gradle.GradlePlugin.schema">[docs]</a>    <span class="k">def</span> <span class="nf">schema</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">schema</span><span class="p">()</span>
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;gradle-options&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;array&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;minitems&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s1">&#39;uniqueItems&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+            <span class="s1">&#39;items&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="p">}</span>
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;gradle-output-dir&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;build/libs&#39;</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">schema</span></div>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">options</span><span class="p">,</span> <span class="n">project</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">options</span><span class="p">,</span> <span class="n">project</span><span class="p">)</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">(),</span> <span class="s1">&#39;gradlew&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">filename</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">build_packages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;gradle&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">build_packages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;ca-certificates-java&#39;</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="GradlePlugin.get_build_properties"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.gradle.GradlePlugin.get_build_properties">[docs]</a>    <span class="k">def</span> <span class="nf">get_build_properties</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="c1"># Inform Snapcraft of the properties associated with building. If these</span>
+        <span class="c1"># change in the YAML Snapcraft will consider the build step dirty.</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">get_build_properties</span><span class="p">()</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;gradle-options&#39;</span><span class="p">,</span>
+                                                 <span class="s1">&#39;gradle-output-dir&#39;</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="GradlePlugin.build"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.gradle.GradlePlugin.build">[docs]</a>    <span class="k">def</span> <span class="nf">build</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">build</span><span class="p">()</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">(),</span> <span class="s1">&#39;gradlew&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">filename</span><span class="p">):</span>
+            <span class="n">gradle_cmd</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;./gradlew&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">gradle_cmd</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;gradle&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">gradle_cmd</span> <span class="o">+</span>
+                 <span class="bp">self</span><span class="o">.</span><span class="n">_get_proxy_options</span><span class="p">()</span> <span class="o">+</span>
+                 <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">gradle_options</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;jar&#39;</span><span class="p">])</span>
+
+        <span class="n">src</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">builddir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">gradle_output_dir</span><span class="p">)</span>
+        <span class="n">jarfiles</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="s1">&#39;*.jar&#39;</span><span class="p">))</span>
+        <span class="n">warfiles</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="s1">&#39;*.war&#39;</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">jarfiles</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">basedir</span> <span class="o">=</span> <span class="s1">&#39;jar&#39;</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">warfiles</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">basedir</span> <span class="o">=</span> <span class="s1">&#39;war&#39;</span>
+            <span class="n">jarfiles</span> <span class="o">=</span> <span class="n">warfiles</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Could not find any built jar files for part&quot;</span><span class="p">)</span>
+
+        <span class="n">snapcraft</span><span class="o">.</span><span class="n">file_utils</span><span class="o">.</span><span class="n">link_or_copy_tree</span><span class="p">(</span>
+            <span class="n">src</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="n">basedir</span><span class="p">),</span>
+            <span class="n">copy_function</span><span class="o">=</span><span class="k">lambda</span> <span class="n">src</span><span class="p">,</span> <span class="n">dst</span><span class="p">:</span>
+                <span class="n">snapcraft</span><span class="o">.</span><span class="n">file_utils</span><span class="o">.</span><span class="n">link_or_copy</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">dst</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">))</span></div>
+
+    <span class="k">def</span> <span class="nf">_get_proxy_options</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># XXX This doesn&#39;t yet support username and password.</span>
+        <span class="c1"># -- elopio - 2016-11-17</span>
+        <span class="n">proxy_options</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;http&#39;</span><span class="p">,</span> <span class="s1">&#39;https&#39;</span><span class="p">):</span>
+            <span class="n">proxy</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;{}_proxy&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">var</span><span class="p">),</span> <span class="bp">False</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">proxy</span><span class="p">:</span>
+                <span class="n">parsed_url</span> <span class="o">=</span> <span class="n">urllib</span><span class="o">.</span><span class="n">parse</span><span class="o">.</span><span class="n">urlparse</span><span class="p">(</span><span class="n">proxy</span><span class="p">)</span>
+                <span class="n">proxy_options</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;-D{}.proxyHost={}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">var</span><span class="p">,</span> <span class="n">parsed_url</span><span class="o">.</span><span class="n">hostname</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">parsed_url</span><span class="o">.</span><span class="n">port</span><span class="p">:</span>
+                    <span class="n">proxy_options</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                        <span class="s1">&#39;-D{}.proxyPort={}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">parsed_url</span><span class="o">.</span><span class="n">port</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">proxy_options</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  <li><a href="../../snapcraft.html">snapcraft</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

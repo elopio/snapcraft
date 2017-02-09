@@ -1,0 +1,454 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.storeapi.errors &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../../index.html" />
+    <link rel="up" title="snapcraft.storeapi" href="../storeapi.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.storeapi.errors</h1><div class="highlight"><pre>
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2016 Canonical Ltd</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="kn">from</span> <span class="nn">simplejson.scanner</span> <span class="kn">import</span> <span class="n">JSONDecodeError</span>
+
+<span class="kn">from</span> <span class="nn">snapcraft.internal.errors</span> <span class="kn">import</span> <span class="n">SnapcraftError</span>
+
+
+<div class="viewcode-block" id="InvalidCredentialsError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.InvalidCredentialsError">[docs]</a><span class="k">class</span> <span class="nc">InvalidCredentialsError</span><span class="p">(</span><span class="n">SnapcraftError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;Invalid credentials: {message}.&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">message</span><span class="o">=</span><span class="n">message</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="StoreError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.StoreError">[docs]</a><span class="k">class</span> <span class="nc">StoreError</span><span class="p">(</span><span class="n">SnapcraftError</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Base class for all storeapi exceptions.</span>
+
+<span class="sd">    :cvar fmt: A format string that daughter classes override</span>
+
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="SnapNotFoundError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.SnapNotFoundError">[docs]</a><span class="k">class</span> <span class="nc">SnapNotFoundError</span><span class="p">(</span><span class="n">StoreError</span><span class="p">):</span>
+
+    <span class="n">__FMT_ARCH_CHANNEL</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;Snap {name!r} for {arch!r} cannot be found in the {channel!r} &#39;</span>
+        <span class="s1">&#39;channel.&#39;</span><span class="p">)</span>
+    <span class="n">__FMT_CHANNEL</span> <span class="o">=</span> <span class="s1">&#39;Snap {name!r} was not found in the {channel!r} channel.&#39;</span>
+    <span class="n">__FMT_SERIES_ARCH</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;Snap {name!r} for {arch!r} was not found in {series!r} series.&#39;</span><span class="p">)</span>
+    <span class="n">__FMT_SERIES</span> <span class="o">=</span> <span class="s1">&#39;Snap {name!r} was not found in {series!r} series.&#39;</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;Snap {name!r} was not found.&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">channel</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">arch</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">series</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">channel</span> <span class="ow">and</span> <span class="n">arch</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">fmt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__FMT_ARCH_CHANNEL</span>
+        <span class="k">elif</span> <span class="n">channel</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">fmt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__FMT_CHANNEL</span>
+        <span class="k">elif</span> <span class="n">series</span> <span class="ow">and</span> <span class="n">arch</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">fmt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__FMT_SERIES_ARCH</span>
+        <span class="k">elif</span> <span class="n">series</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">fmt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__FMT_SERIES</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">channel</span><span class="o">=</span><span class="n">channel</span><span class="p">,</span> <span class="n">arch</span><span class="o">=</span><span class="n">arch</span><span class="p">,</span> <span class="n">series</span><span class="o">=</span><span class="n">series</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SHAMismatchError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.SHAMismatchError">[docs]</a><span class="k">class</span> <span class="nc">SHAMismatchError</span><span class="p">(</span><span class="n">StoreError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;SHA512 checksum for {path} is not {expected_sha}.&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">expected_sha</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span> <span class="n">expected_sha</span><span class="o">=</span><span class="n">expected_sha</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="StoreAuthenticationError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.StoreAuthenticationError">[docs]</a><span class="k">class</span> <span class="nc">StoreAuthenticationError</span><span class="p">(</span><span class="n">StoreError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;Authentication error: {}.&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">message</span><span class="o">=</span><span class="n">message</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="StoreTwoFactorAuthenticationRequired"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.StoreTwoFactorAuthenticationRequired">[docs]</a><span class="k">class</span> <span class="nc">StoreTwoFactorAuthenticationRequired</span><span class="p">(</span><span class="n">StoreAuthenticationError</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="s2">&quot;Two-factor authentication required.&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="StoreMacaroonNeedsRefreshError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.StoreMacaroonNeedsRefreshError">[docs]</a><span class="k">class</span> <span class="nc">StoreMacaroonNeedsRefreshError</span><span class="p">(</span><span class="n">StoreError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;Authentication macaroon needs to be refreshed.&#39;</span></div>
+
+
+<div class="viewcode-block" id="DeveloperAgreementSignError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.DeveloperAgreementSignError">[docs]</a><span class="k">class</span> <span class="nc">DeveloperAgreementSignError</span><span class="p">(</span><span class="n">StoreError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;There was an error while signing developer agreement.</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="s1">&#39;Reason: {reason!r}</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="s1">&#39;Text: {text!r}&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">response</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">reason</span><span class="o">=</span><span class="n">response</span><span class="o">.</span><span class="n">reason</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="n">response</span><span class="o">.</span><span class="n">text</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="NeedTermsSignedError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.NeedTermsSignedError">[docs]</a><span class="k">class</span> <span class="nc">NeedTermsSignedError</span><span class="p">(</span><span class="n">StoreError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;Developer Terms of Service agreement must be signed &#39;</span>
+        <span class="s1">&#39;before continuing: {message}&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">message</span><span class="o">=</span><span class="n">message</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="StoreAccountInformationError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.StoreAccountInformationError">[docs]</a><span class="k">class</span> <span class="nc">StoreAccountInformationError</span><span class="p">(</span><span class="n">StoreError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;Error fetching account information from store: {error}&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">response</span><span class="p">):</span>
+        <span class="n">error</span> <span class="o">=</span> <span class="s1">&#39;{} {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="n">response</span><span class="o">.</span><span class="n">reason</span><span class="p">)</span>
+        <span class="n">extra</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">response_json</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+            <span class="k">if</span> <span class="s1">&#39;error_list&#39;</span> <span class="ow">in</span> <span class="n">response_json</span><span class="p">:</span>
+                <span class="n">error</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                    <span class="n">error</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">error</span> <span class="ow">in</span> <span class="n">response_json</span><span class="p">[</span><span class="s1">&#39;error_list&#39;</span><span class="p">])</span>
+                <span class="n">extra</span> <span class="o">=</span> <span class="p">[</span>
+                    <span class="n">error</span><span class="p">[</span><span class="s1">&#39;extra&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">error</span> <span class="ow">in</span> <span class="n">response_json</span><span class="p">[</span>
+                        <span class="s1">&#39;error_list&#39;</span><span class="p">]</span> <span class="k">if</span> <span class="s1">&#39;extra&#39;</span> <span class="ow">in</span> <span class="n">error</span><span class="p">]</span>
+        <span class="k">except</span> <span class="n">JSONDecodeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">error</span><span class="o">=</span><span class="n">error</span><span class="p">,</span> <span class="n">extra</span><span class="o">=</span><span class="n">extra</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="StoreKeyRegistrationError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.StoreKeyRegistrationError">[docs]</a><span class="k">class</span> <span class="nc">StoreKeyRegistrationError</span><span class="p">(</span><span class="n">StoreError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;Key registration failed: {error}&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">response</span><span class="p">):</span>
+        <span class="n">error</span> <span class="o">=</span> <span class="s1">&#39;{} {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="n">response</span><span class="o">.</span><span class="n">reason</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">response_json</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+            <span class="k">if</span> <span class="s1">&#39;error_list&#39;</span> <span class="ow">in</span> <span class="n">response_json</span><span class="p">:</span>
+                <span class="n">error</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                    <span class="n">error</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">error</span> <span class="ow">in</span> <span class="n">response_json</span><span class="p">[</span><span class="s1">&#39;error_list&#39;</span><span class="p">])</span>
+        <span class="k">except</span> <span class="n">JSONDecodeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">error</span><span class="o">=</span><span class="n">error</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="StoreRegistrationError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.StoreRegistrationError">[docs]</a><span class="k">class</span> <span class="nc">StoreRegistrationError</span><span class="p">(</span><span class="n">StoreError</span><span class="p">):</span>
+
+    <span class="n">__FMT_ALREADY_REGISTERED</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;The name {snap_name!r} is already taken.</span><span class="se">\n\n</span><span class="s1">&#39;</span>
+        <span class="s1">&#39;We can if needed rename snaps to ensure they match the expectations &#39;</span>
+        <span class="s1">&#39;of most users. If you are the publisher most users expect for &#39;</span>
+        <span class="s1">&#39;{snap_name!r} then claim the name at {register_name_url!r}&#39;</span><span class="p">)</span>
+
+    <span class="n">__FMT_ALREADY_OWNED</span> <span class="o">=</span> <span class="s1">&#39;You already own the name {snap_name!r}.&#39;</span>
+
+    <span class="n">__FMT_RESERVED</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;The name {snap_name!r} is reserved.</span><span class="se">\n\n</span><span class="s1">&#39;</span>
+        <span class="s1">&#39;If you are the publisher most users expect for &#39;</span>
+        <span class="s1">&#39;{snap_name!r} then please claim the name at {register_name_url!r}&#39;</span><span class="p">)</span>
+
+    <span class="n">__FMT_RETRY_WAIT</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;You must wait {retry_after} seconds before trying to register &#39;</span>
+        <span class="s1">&#39;your next snap.&#39;</span><span class="p">)</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;Registration failed.&#39;</span>
+
+    <span class="n">__error_messages</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;already_registered&#39;</span><span class="p">:</span> <span class="n">__FMT_ALREADY_REGISTERED</span><span class="p">,</span>
+        <span class="s1">&#39;already_owned&#39;</span><span class="p">:</span> <span class="n">__FMT_ALREADY_OWNED</span><span class="p">,</span>
+        <span class="s1">&#39;reserved_name&#39;</span><span class="p">:</span> <span class="n">__FMT_RESERVED</span><span class="p">,</span>
+        <span class="s1">&#39;register_window&#39;</span><span class="p">:</span> <span class="n">__FMT_RETRY_WAIT</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">,</span> <span class="n">response</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">response_json</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="k">except</span> <span class="n">JSONDecodeError</span><span class="p">:</span>
+            <span class="n">response_json</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="n">error_code</span> <span class="o">=</span> <span class="n">response_json</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;code&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">error_code</span><span class="p">:</span>
+            <span class="c1"># we default to self.fmt in case error_code is not mapped yet.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">fmt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__error_messages</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">error_code</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fmt</span><span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">snap_name</span><span class="o">=</span><span class="n">snap_name</span><span class="p">,</span> <span class="o">**</span><span class="n">response_json</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="StoreUploadError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.StoreUploadError">[docs]</a><span class="k">class</span> <span class="nc">StoreUploadError</span><span class="p">(</span><span class="n">StoreError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;There was an error uploading the package.</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="s1">&#39;Reason: {reason!r}</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="s1">&#39;Text: {text!r}&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">response</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">reason</span><span class="o">=</span><span class="n">response</span><span class="o">.</span><span class="n">reason</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="n">response</span><span class="o">.</span><span class="n">text</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="StorePushError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.StorePushError">[docs]</a><span class="k">class</span> <span class="nc">StorePushError</span><span class="p">(</span><span class="n">StoreError</span><span class="p">):</span>
+
+    <span class="n">__FMT_NOT_REGISTERED</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;You are not the publisher or allowed to push revisions for this &#39;</span>
+        <span class="s1">&#39;snap. To become the publisher, run `snapcraft register {snap_name}` &#39;</span>
+        <span class="s1">&#39;and try to push again.&#39;</span><span class="p">)</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;Received {status_code!r}: {text!r}&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">,</span> <span class="n">response</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">response_json</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">AttributeError</span><span class="p">,</span> <span class="n">JSONDecodeError</span><span class="p">):</span>
+            <span class="n">response_json</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">404</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">fmt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__FMT_NOT_REGISTERED</span>
+        <span class="k">elif</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">401</span> <span class="ow">or</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">403</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">response_json</span><span class="p">[</span><span class="s1">&#39;text&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">text</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="n">response_json</span><span class="p">[</span><span class="s1">&#39;text&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;error while pushing&#39;</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">snap_name</span><span class="o">=</span><span class="n">snap_name</span><span class="p">,</span> <span class="n">status_code</span><span class="o">=</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span>
+                         <span class="o">**</span><span class="n">response_json</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="StoreReviewError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.StoreReviewError">[docs]</a><span class="k">class</span> <span class="nc">StoreReviewError</span><span class="p">(</span><span class="n">StoreError</span><span class="p">):</span>
+
+    <span class="n">__FMT_NEED_MANUAL_REVIEW</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;Publishing checks failed.</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="s1">&#39;To release this to stable channel please request a review on &#39;</span>
+        <span class="s1">&#39;the snapcraft list.</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="s1">&#39;Use devmode in the edge or beta channels to disable confinement.&#39;</span><span class="p">)</span>
+
+    <span class="n">__FMT_PROCESSING_ERROR</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;The store was unable to accept this snap.&#39;</span><span class="p">)</span>
+
+    <span class="n">__FMT_PROCESSING_UPLOAD_DELTA_ERROR</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;There has been a problem while processing a snap delta.&#39;</span><span class="p">)</span>
+
+    <span class="n">__messages</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;need_manual_review&#39;</span><span class="p">:</span> <span class="n">__FMT_NEED_MANUAL_REVIEW</span><span class="p">,</span>
+        <span class="s1">&#39;processing_error&#39;</span><span class="p">:</span> <span class="n">__FMT_PROCESSING_ERROR</span><span class="p">,</span>
+        <span class="s1">&#39;processing_upload_delta_error&#39;</span><span class="p">:</span> <span class="n">__FMT_PROCESSING_UPLOAD_DELTA_ERROR</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">result</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fmt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__messages</span><span class="p">[</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;code&#39;</span><span class="p">]]</span>
+        <span class="n">errors</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;errors&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">errors</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">error</span> <span class="ow">in</span> <span class="n">errors</span><span class="p">:</span>
+                <span class="n">message</span> <span class="o">=</span> <span class="n">error</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;message&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">message</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;{}</span><span class="se">\n</span><span class="s1">  - {message}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">fmt</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="n">message</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">code</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;code&#39;</span><span class="p">]</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="StoreReleaseError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.StoreReleaseError">[docs]</a><span class="k">class</span> <span class="nc">StoreReleaseError</span><span class="p">(</span><span class="n">StoreError</span><span class="p">):</span>
+
+    <span class="n">__FMT_NOT_REGISTERED</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;Sorry, try `snapcraft register {snap_name}` before trying to &#39;</span>
+        <span class="s1">&#39;release or choose an existing revision.&#39;</span><span class="p">)</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;Received {status_code!r}: {text!r}&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">,</span> <span class="n">response</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">response_json</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">AttributeError</span><span class="p">,</span> <span class="n">JSONDecodeError</span><span class="p">):</span>
+            <span class="n">response_json</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">404</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">fmt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__FMT_NOT_REGISTERED</span>
+        <span class="k">elif</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">401</span> <span class="ow">or</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">403</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">response_json</span><span class="p">[</span><span class="s1">&#39;text&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">text</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="n">response_json</span><span class="p">[</span><span class="s1">&#39;text&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;error while releasing&#39;</span>
+        <span class="k">elif</span> <span class="s1">&#39;errors&#39;</span> <span class="ow">in</span> <span class="n">response_json</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;{errors}&#39;</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">snap_name</span><span class="o">=</span><span class="n">snap_name</span><span class="p">,</span> <span class="n">status_code</span><span class="o">=</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span>
+                         <span class="o">**</span><span class="n">response_json</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="StoreValidationError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.StoreValidationError">[docs]</a><span class="k">class</span> <span class="nc">StoreValidationError</span><span class="p">(</span><span class="n">StoreError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;Received error {status_code!r}: {text!r}&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_id</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">response_json</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+            <span class="n">response_json</span><span class="p">[</span><span class="s1">&#39;text&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s1">&#39;error_list&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;message&#39;</span><span class="p">]</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">AttributeError</span><span class="p">,</span> <span class="n">JSONDecodeError</span><span class="p">):</span>
+            <span class="n">response_json</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;text&#39;</span><span class="p">:</span> <span class="n">message</span> <span class="ow">or</span> <span class="n">response</span><span class="p">}</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">status_code</span><span class="o">=</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span>
+                         <span class="o">**</span><span class="n">response_json</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="StoreSnapBuildError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.StoreSnapBuildError">[docs]</a><span class="k">class</span> <span class="nc">StoreSnapBuildError</span><span class="p">(</span><span class="n">StoreError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;Could not assert build: {error}&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">response</span><span class="p">):</span>
+        <span class="n">error</span> <span class="o">=</span> <span class="s1">&#39;{} {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="n">response</span><span class="o">.</span><span class="n">reason</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">response_json</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+            <span class="k">if</span> <span class="s1">&#39;error_list&#39;</span> <span class="ow">in</span> <span class="n">response_json</span><span class="p">:</span>
+                <span class="n">error</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                    <span class="n">error</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">error</span> <span class="ow">in</span> <span class="n">response_json</span><span class="p">[</span><span class="s1">&#39;error_list&#39;</span><span class="p">])</span>
+        <span class="k">except</span> <span class="n">JSONDecodeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">error</span><span class="o">=</span><span class="n">error</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="StoreSnapHistoryError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.StoreSnapHistoryError">[docs]</a><span class="k">class</span> <span class="nc">StoreSnapHistoryError</span><span class="p">(</span><span class="n">StoreError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;Error fetching history of snap id {snap_id!r} for {arch!r} &#39;</span>
+        <span class="s1">&#39;in {series!r} series: {error}.&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">snap_id</span><span class="p">,</span> <span class="n">series</span><span class="p">,</span> <span class="n">arch</span><span class="p">):</span>
+        <span class="n">error</span> <span class="o">=</span> <span class="s1">&#39;{} {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="n">response</span><span class="o">.</span><span class="n">reason</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">response_json</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+            <span class="k">if</span> <span class="s1">&#39;error_list&#39;</span> <span class="ow">in</span> <span class="n">response_json</span><span class="p">:</span>
+                <span class="n">error</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                    <span class="n">error</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">error</span> <span class="ow">in</span> <span class="n">response_json</span><span class="p">[</span><span class="s1">&#39;error_list&#39;</span><span class="p">])</span>
+        <span class="k">except</span> <span class="n">JSONDecodeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span>
+            <span class="n">snap_id</span><span class="o">=</span><span class="n">snap_id</span><span class="p">,</span> <span class="n">arch</span><span class="o">=</span><span class="n">arch</span> <span class="ow">or</span> <span class="s1">&#39;any arch&#39;</span><span class="p">,</span>
+            <span class="n">series</span><span class="o">=</span><span class="n">series</span> <span class="ow">or</span> <span class="s1">&#39;any&#39;</span><span class="p">,</span> <span class="n">error</span><span class="o">=</span><span class="n">error</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="StoreDeltaApplicationError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.StoreDeltaApplicationError">[docs]</a><span class="k">class</span> <span class="nc">StoreDeltaApplicationError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="StoreSnapStatusError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.StoreSnapStatusError">[docs]</a><span class="k">class</span> <span class="nc">StoreSnapStatusError</span><span class="p">(</span><span class="n">StoreSnapHistoryError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;Error fetching status of snap id {snap_id!r} for {arch!r} &#39;</span>
+        <span class="s1">&#39;in {series!r} series: {error}.&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="StoreChannelClosingError"><a class="viewcode-back" href="../../../snapcraft.storeapi.html#snapcraft.storeapi.errors.StoreChannelClosingError">[docs]</a><span class="k">class</span> <span class="nc">StoreChannelClosingError</span><span class="p">(</span><span class="n">StoreError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;Could not close channel: {error}&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">response</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">e</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s1">&#39;error_list&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">error</span> <span class="o">=</span> <span class="s1">&#39;{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">e</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">])</span>
+        <span class="k">except</span> <span class="p">(</span><span class="n">JSONDecodeError</span><span class="p">,</span> <span class="ne">KeyError</span><span class="p">,</span> <span class="ne">IndexError</span><span class="p">):</span>
+            <span class="n">error</span> <span class="o">=</span> <span class="s1">&#39;{} {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="n">response</span><span class="o">.</span><span class="n">reason</span><span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">error</span><span class="o">=</span><span class="n">error</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  <li><a href="../../snapcraft.html">snapcraft</a><ul>
+  <li><a href="../storeapi.html">snapcraft.storeapi</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

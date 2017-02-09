@@ -1,0 +1,22 @@
+snapcraft.internal.sources package
+==================================
+
+Submodules
+----------
+
+snapcraft.internal.sources.errors module
+----------------------------------------
+
+.. automodule:: snapcraft.internal.sources.errors
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Module contents
+---------------
+
+.. automodule:: snapcraft.internal.sources
+    :members:
+    :undoc-members:
+    :show-inheritance:

@@ -1,0 +1,235 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.plugins.rust &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../../index.html" />
+    <link rel="up" title="snapcraft" href="../../snapcraft.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.plugins.rust</h1><div class="highlight"><pre>
+<span class="c1"># Copyright (C) 2016-2017 Marius Gripsgard (mariogrip@ubuntu.com)</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="sd">&quot;&quot;&quot;This rust plugin is useful for building rust based parts.</span>
+
+<span class="sd">Rust uses cargo to drive the build.</span>
+
+<span class="sd">This plugin uses the common plugin keywords as well as those for &quot;sources&quot;.</span>
+<span class="sd">For more information check the &#39;plugins&#39; topic for the former and the</span>
+<span class="sd">&#39;sources&#39; topic for the latter.</span>
+
+<span class="sd">Additionally, this plugin uses the following plugin-specific keywords:</span>
+
+<span class="sd">    - rust-channel</span>
+<span class="sd">      (string)</span>
+<span class="sd">      select rust channel (stable, beta, nightly)</span>
+<span class="sd">    - rust-revision</span>
+<span class="sd">      (string)</span>
+<span class="sd">      select rust version</span>
+<span class="sd">    - rust-features</span>
+<span class="sd">      (list of strings)</span>
+<span class="sd">      Features used to build optional dependencies</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">shutil</span>
+
+<span class="kn">import</span> <span class="nn">snapcraft</span>
+<span class="kn">from</span> <span class="nn">snapcraft</span> <span class="kn">import</span> <span class="n">sources</span>
+
+<span class="n">_RUSTUP</span> <span class="o">=</span> <span class="s1">&#39;https://static.rust-lang.org/rustup.sh&#39;</span>
+
+
+<div class="viewcode-block" id="RustPlugin"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.rust.RustPlugin">[docs]</a><span class="k">class</span> <span class="nc">RustPlugin</span><span class="p">(</span><span class="n">snapcraft</span><span class="o">.</span><span class="n">BasePlugin</span><span class="p">):</span>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="RustPlugin.schema"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.rust.RustPlugin.schema">[docs]</a>    <span class="k">def</span> <span class="nf">schema</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">schema</span><span class="p">()</span>
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;rust-channel&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;rust-revision&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;rust-features&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;array&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;minitems&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s1">&#39;uniqueItems&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+            <span class="s1">&#39;items&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">[]</span>
+        <span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">schema</span></div>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="RustPlugin.get_pull_properties"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.rust.RustPlugin.get_pull_properties">[docs]</a>    <span class="k">def</span> <span class="nf">get_pull_properties</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;rust-revision&#39;</span><span class="p">,</span> <span class="s1">&#39;rust-channel&#39;</span><span class="p">]</span></div>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="RustPlugin.get_build_properties"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.rust.RustPlugin.get_build_properties">[docs]</a>    <span class="k">def</span> <span class="nf">get_build_properties</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;rust-features&#39;</span><span class="p">]</span></div>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">options</span><span class="p">,</span> <span class="n">project</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">options</span><span class="p">,</span> <span class="n">project</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">build_packages</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span>
+            <span class="s1">&#39;gcc&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;binutils&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;libc6-dev&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;git&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;curl&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;file&#39;</span><span class="p">,</span>
+        <span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rustpath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">partdir</span><span class="p">,</span> <span class="s2">&quot;rust&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rustc</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rustpath</span><span class="p">,</span> <span class="s2">&quot;bin&quot;</span><span class="p">,</span> <span class="s2">&quot;rustc&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rustdoc</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rustpath</span><span class="p">,</span> <span class="s2">&quot;bin&quot;</span><span class="p">,</span> <span class="s2">&quot;rustdoc&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cargo</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rustpath</span><span class="p">,</span> <span class="s2">&quot;bin&quot;</span><span class="p">,</span> <span class="s2">&quot;cargo&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rustlib</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rustpath</span><span class="p">,</span> <span class="s2">&quot;lib&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rustup_get</span> <span class="o">=</span> <span class="n">sources</span><span class="o">.</span><span class="n">Script</span><span class="p">(</span><span class="n">_RUSTUP</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rustpath</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rustup</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rustpath</span><span class="p">,</span> <span class="s2">&quot;rustup.sh&quot;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="RustPlugin.build"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.rust.RustPlugin.build">[docs]</a>    <span class="k">def</span> <span class="nf">build</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">build</span><span class="p">()</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_cargo</span><span class="p">,</span> <span class="s1">&#39;install&#39;</span><span class="p">,</span>
+               <span class="s1">&#39;-j{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parallel_build_count</span><span class="p">),</span>
+               <span class="s1">&#39;--root&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span>
+               <span class="s1">&#39;--path&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">builddir</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">rust_features</span><span class="p">:</span>
+            <span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;--features&quot;</span><span class="p">)</span>
+            <span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">rust_features</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_build_env</span><span class="p">())</span></div>
+
+    <span class="k">def</span> <span class="nf">_build_env</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s2">&quot;RUSTC&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rustc</span><span class="p">,</span>
+                    <span class="s2">&quot;RUSTDOC&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rustdoc</span><span class="p">,</span>
+                    <span class="s2">&quot;RUST_PATH&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rustlib</span><span class="p">})</span>
+        <span class="k">return</span> <span class="n">env</span>
+
+<div class="viewcode-block" id="RustPlugin.pull"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.rust.RustPlugin.pull">[docs]</a>    <span class="k">def</span> <span class="nf">pull</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">pull</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fetch_rust</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fetch_deps</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="RustPlugin.clean_pull"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.rust.RustPlugin.clean_pull">[docs]</a>    <span class="k">def</span> <span class="nf">clean_pull</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">clean_pull</span><span class="p">()</span>
+
+        <span class="c1"># Remove the rust path (if any)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rustpath</span><span class="p">):</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rustpath</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_fetch_rust</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">options</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">rust_revision</span><span class="p">:</span>
+            <span class="n">options</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--revision={}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">rust_revision</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">rust_channel</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">rust_channel</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;stable&#39;</span><span class="p">,</span> <span class="s1">&#39;beta&#39;</span><span class="p">,</span> <span class="s1">&#39;nightly&#39;</span><span class="p">]:</span>
+                <span class="n">options</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="s1">&#39;--channel={}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">rust_channel</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">EnvironmentError</span><span class="p">(</span>
+                    <span class="s1">&#39;{} is not a valid rust channel&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">rust_channel</span><span class="p">))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rustpath</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rustpath</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rustup_get</span><span class="o">.</span><span class="n">download</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_rustup</span><span class="p">,</span>
+                  <span class="s1">&#39;--prefix={}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rustpath</span><span class="p">),</span>
+                  <span class="s1">&#39;--disable-sudo&#39;</span><span class="p">,</span> <span class="s1">&#39;--save&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">options</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_fetch_deps</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_cargo</span><span class="p">,</span> <span class="s1">&#39;fetch&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;--manifest-path&#39;</span><span class="p">,</span>
+                  <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sourcedir</span><span class="p">,</span> <span class="s1">&#39;Cargo.toml&#39;</span><span class="p">)])</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  <li><a href="../../snapcraft.html">snapcraft</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

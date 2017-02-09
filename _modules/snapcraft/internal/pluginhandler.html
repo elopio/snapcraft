@@ -1,0 +1,1227 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.internal.pluginhandler &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../../index.html" />
+    <link rel="up" title="snapcraft" href="../../snapcraft.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.internal.pluginhandler</h1><div class="highlight"><pre>
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2015-2017 Canonical Ltd</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="kn">import</span> <span class="nn">contextlib</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">import</span> <span class="nn">filecmp</span>
+<span class="kn">import</span> <span class="nn">importlib</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">shutil</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">from</span> <span class="nn">glob</span> <span class="kn">import</span> <span class="n">glob</span><span class="p">,</span> <span class="n">iglob</span>
+
+<span class="kn">import</span> <span class="nn">jsonschema</span>
+<span class="kn">import</span> <span class="nn">magic</span>
+<span class="kn">import</span> <span class="nn">yaml</span>
+
+<span class="kn">import</span> <span class="nn">snapcraft</span>
+<span class="kn">from</span> <span class="nn">snapcraft</span> <span class="kn">import</span> <span class="n">file_utils</span>
+<span class="kn">from</span> <span class="nn">snapcraft.internal.errors</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">PrimeFileConflictError</span><span class="p">,</span>
+    <span class="n">PluginError</span><span class="p">,</span>
+    <span class="n">MissingState</span><span class="p">,</span>
+    <span class="n">SnapcraftPartConflictError</span><span class="p">,</span>
+    <span class="n">SnapcraftSchemaError</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">snapcraft.internal</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">common</span><span class="p">,</span>
+    <span class="n">libraries</span><span class="p">,</span>
+    <span class="n">repo</span><span class="p">,</span>
+    <span class="n">sources</span><span class="p">,</span>
+    <span class="n">states</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">._scriptlets</span> <span class="kn">import</span> <span class="n">ScriptRunner</span>
+<span class="kn">from</span> <span class="nn">._build_attributes</span> <span class="kn">import</span> <span class="n">BuildAttributes</span>
+<span class="kn">from</span> <span class="nn">._stage_package_handler</span> <span class="kn">import</span> <span class="n">StagePackageHandler</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="DirtyReport"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.DirtyReport">[docs]</a><span class="k">class</span> <span class="nc">DirtyReport</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dirty_properties</span><span class="p">,</span> <span class="n">dirty_project_options</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dirty_properties</span> <span class="o">=</span> <span class="n">dirty_properties</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dirty_project_options</span> <span class="o">=</span> <span class="n">dirty_project_options</span></div>
+
+
+<div class="viewcode-block" id="PluginHandler"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler">[docs]</a><span class="k">class</span> <span class="nc">PluginHandler</span><span class="p">:</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">installdir</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">installdir</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">plugin_name</span><span class="p">,</span> <span class="n">part_name</span><span class="p">,</span>
+                 <span class="n">part_properties</span><span class="p">,</span> <span class="n">project_options</span><span class="p">,</span> <span class="n">part_schema</span><span class="p">,</span>
+                 <span class="n">definitions_schema</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">valid</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">code</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="n">part_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_part_properties</span> <span class="o">=</span> <span class="n">_expand_part_properties</span><span class="p">(</span>
+            <span class="n">part_properties</span><span class="p">,</span> <span class="n">part_schema</span><span class="p">)</span>
+
+        <span class="c1"># Some legacy parts can have a &#39;/&#39; in them to separate the main project</span>
+        <span class="c1"># part with the subparts. This is rather unfortunate as it affects the</span>
+        <span class="c1"># the layout of parts inside the parts directory causing collisions</span>
+        <span class="c1"># between the main project part and its subparts.</span>
+        <span class="n">part_name</span> <span class="o">=</span> <span class="n">part_name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">,</span> <span class="s1">&#39;</span><span class="se">\N{BIG SOLIDUS}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span> <span class="o">=</span> <span class="n">project_options</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">deps</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">stagedir</span> <span class="o">=</span> <span class="n">project_options</span><span class="o">.</span><span class="n">stage_dir</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">snapdir</span> <span class="o">=</span> <span class="n">project_options</span><span class="o">.</span><span class="n">snap_dir</span>
+
+        <span class="n">parts_dir</span> <span class="o">=</span> <span class="n">project_options</span><span class="o">.</span><span class="n">parts_dir</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ubuntudir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts_dir</span><span class="p">,</span> <span class="n">part_name</span><span class="p">,</span> <span class="s1">&#39;ubuntu&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">statedir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts_dir</span><span class="p">,</span> <span class="n">part_name</span><span class="p">,</span> <span class="s1">&#39;state&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sourcedir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts_dir</span><span class="p">,</span> <span class="n">part_name</span><span class="p">,</span> <span class="s1">&#39;src&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">source_handler</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_source_handler</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_part_properties</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_build_attributes</span> <span class="o">=</span> <span class="n">BuildAttributes</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_part_properties</span><span class="p">[</span><span class="s1">&#39;build-attributes&#39;</span><span class="p">])</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_migrate_state_file</span><span class="p">()</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_load_code</span><span class="p">(</span>
+                <span class="n">plugin_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_part_properties</span><span class="p">,</span> <span class="n">part_schema</span><span class="p">,</span>
+                <span class="n">definitions_schema</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">jsonschema</span><span class="o">.</span><span class="n">ValidationError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">error</span> <span class="o">=</span> <span class="n">SnapcraftSchemaError</span><span class="o">.</span><span class="n">from_validation_error</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">PluginError</span><span class="p">(</span><span class="s1">&#39;properties failed to load for {}: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">part_name</span><span class="p">,</span> <span class="n">error</span><span class="o">.</span><span class="n">message</span><span class="p">))</span>
+
+        <span class="n">stage_packages</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="p">,</span> <span class="s1">&#39;stage_packages&#39;</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="n">sources</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="p">,</span> <span class="s1">&#39;PLUGIN_STAGE_SOURCES&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_stage_package_handler</span> <span class="o">=</span> <span class="n">StagePackageHandler</span><span class="p">(</span>
+            <span class="n">stage_packages</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ubuntudir</span><span class="p">,</span>
+            <span class="n">sources</span><span class="o">=</span><span class="n">sources</span><span class="p">,</span> <span class="n">project_options</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_load_code</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">plugin_name</span><span class="p">,</span> <span class="n">properties</span><span class="p">,</span> <span class="n">part_schema</span><span class="p">,</span>
+                   <span class="n">definitions_schema</span><span class="p">):</span>
+        <span class="n">module_name</span> <span class="o">=</span> <span class="n">plugin_name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="s1">&#39;_&#39;</span><span class="p">)</span>
+        <span class="n">module</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">suppress</span><span class="p">(</span><span class="ne">ImportError</span><span class="p">):</span>
+            <span class="n">module</span> <span class="o">=</span> <span class="n">_load_local</span><span class="p">(</span><span class="s1">&#39;x-{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">plugin_name</span><span class="p">),</span>
+                                 <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="o">.</span><span class="n">local_plugins_dir</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Loaded local plugin for </span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">plugin_name</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">module</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">suppress</span><span class="p">(</span><span class="ne">ImportError</span><span class="p">):</span>
+                <span class="n">module</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span>
+                    <span class="s1">&#39;snapcraft.plugins.{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">module_name</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">module</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Searching for local plugin for </span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">plugin_name</span><span class="p">)</span>
+            <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">suppress</span><span class="p">(</span><span class="ne">ImportError</span><span class="p">):</span>
+                <span class="n">module</span> <span class="o">=</span> <span class="n">_load_local</span><span class="p">(</span><span class="n">module_name</span><span class="p">,</span>
+                                     <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="o">.</span><span class="n">local_plugins_dir</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">module</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">PluginError</span><span class="p">(</span><span class="s1">&#39;unknown plugin: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">plugin_name</span><span class="p">))</span>
+
+        <span class="n">plugin</span> <span class="o">=</span> <span class="n">_get_plugin</span><span class="p">(</span><span class="n">module</span><span class="p">)</span>
+        <span class="n">_validate_pull_and_build_properties</span><span class="p">(</span>
+            <span class="n">plugin_name</span><span class="p">,</span> <span class="n">plugin</span><span class="p">,</span> <span class="n">part_schema</span><span class="p">,</span> <span class="n">definitions_schema</span><span class="p">)</span>
+        <span class="n">options</span> <span class="o">=</span> <span class="n">_make_options</span><span class="p">(</span>
+            <span class="n">part_schema</span><span class="p">,</span> <span class="n">definitions_schema</span><span class="p">,</span> <span class="n">properties</span><span class="p">,</span> <span class="n">plugin</span><span class="o">.</span><span class="n">schema</span><span class="p">())</span>
+        <span class="c1"># For backwards compatibility we add the project to the plugin</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">code</span> <span class="o">=</span> <span class="n">plugin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">options</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s1">&#39;DEPRECATED: the plugin used by part {!r} needs to be updated &#39;</span>
+                <span class="s1">&#39;to accept project options in its initializer. See &#39;</span>
+                <span class="s1">&#39;https://github.com/snapcore/snapcraft/blob/master/docs/&#39;</span>
+                <span class="s1">&#39;plugins.md#initializing-a-plugin for more information&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">code</span> <span class="o">=</span> <span class="n">plugin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">options</span><span class="p">)</span>
+            <span class="c1"># This is for plugins that don&#39;t inherit from BasePlugin</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="p">,</span> <span class="s1">&#39;project&#39;</span><span class="p">):</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="p">,</span> <span class="s1">&#39;project&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="p">)</span>
+            <span class="c1"># This is for plugins that inherit from BasePlugin but don&#39;t have</span>
+            <span class="c1"># project in init.</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">project</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">project</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="o">.</span><span class="n">is_cross_compiling</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="s1">&#39;Setting {!r} as the compilation target for {!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="o">.</span><span class="n">deb_arch</span><span class="p">,</span> <span class="n">plugin_name</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">enable_cross_compilation</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_get_source_handler</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">properties</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns a source_handler for the source in properties.&quot;&quot;&quot;</span>
+        <span class="c1"># TODO: we cannot pop source as it is used by plugins. We also make</span>
+        <span class="c1"># the default &#39;.&#39;</span>
+        <span class="n">source_handler</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">if</span> <span class="n">properties</span><span class="p">[</span><span class="s1">&#39;source&#39;</span><span class="p">]:</span>
+            <span class="n">handler_class</span> <span class="o">=</span> <span class="n">sources</span><span class="o">.</span><span class="n">get_source_handler</span><span class="p">(</span>
+                <span class="n">properties</span><span class="p">[</span><span class="s1">&#39;source&#39;</span><span class="p">],</span> <span class="n">source_type</span><span class="o">=</span><span class="n">properties</span><span class="p">[</span><span class="s1">&#39;source-type&#39;</span><span class="p">])</span>
+            <span class="n">source_handler</span> <span class="o">=</span> <span class="n">handler_class</span><span class="p">(</span>
+                <span class="n">properties</span><span class="p">[</span><span class="s1">&#39;source&#39;</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">sourcedir</span><span class="p">,</span>
+                <span class="n">source_branch</span><span class="o">=</span><span class="n">properties</span><span class="p">[</span><span class="s1">&#39;source-branch&#39;</span><span class="p">],</span>
+                <span class="n">source_tag</span><span class="o">=</span><span class="n">properties</span><span class="p">[</span><span class="s1">&#39;source-tag&#39;</span><span class="p">],</span>
+                <span class="n">source_depth</span><span class="o">=</span><span class="n">properties</span><span class="p">[</span><span class="s1">&#39;source-depth&#39;</span><span class="p">],</span>
+                <span class="n">source_commit</span><span class="o">=</span><span class="n">properties</span><span class="p">[</span><span class="s1">&#39;source-commit&#39;</span><span class="p">],</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">source_handler</span>
+
+<div class="viewcode-block" id="PluginHandler.makedirs"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.makedirs">[docs]</a>    <span class="k">def</span> <span class="nf">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">dirs</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">sourcedir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">builddir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">stagedir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">snapdir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">statedir</span>
+        <span class="p">]</span>
+        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dirs</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_migrate_state_file</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># In previous versions of Snapcraft, the state directory was a file.</span>
+        <span class="c1"># Rather than die if we&#39;re running on output from an old version,</span>
+        <span class="c1"># migrate it for them.</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">statedir</span><span class="p">):</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">statedir</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">step</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">step</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">statedir</span><span class="p">)</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">statedir</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">mark_done</span><span class="p">(</span><span class="n">step</span><span class="p">)</span>
+
+<div class="viewcode-block" id="PluginHandler.notify_part_progress"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.notify_part_progress">[docs]</a>    <span class="k">def</span> <span class="nf">notify_part_progress</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">progress</span><span class="p">,</span> <span class="n">hint</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> </span><span class="si">%s</span><span class="s1"> </span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">progress</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">hint</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PluginHandler.last_step"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.last_step">[docs]</a>    <span class="k">def</span> <span class="nf">last_step</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">common</span><span class="o">.</span><span class="n">COMMAND_ORDER</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_step_state_file</span><span class="p">(</span><span class="n">step</span><span class="p">)):</span>
+                <span class="k">return</span> <span class="n">step</span>
+
+        <span class="k">return</span> <span class="bp">None</span></div>
+
+<div class="viewcode-block" id="PluginHandler.is_clean"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.is_clean">[docs]</a>    <span class="k">def</span> <span class="nf">is_clean</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">step</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return true if the given step hasn&#39;t run (or has been cleaned).&quot;&quot;&quot;</span>
+
+        <span class="n">last_step</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_step</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">last_step</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">common</span><span class="o">.</span><span class="n">COMMAND_ORDER</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">step</span><span class="p">)</span> <span class="o">&gt;</span>
+                    <span class="n">common</span><span class="o">.</span><span class="n">COMMAND_ORDER</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">last_step</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="bp">True</span></div>
+
+<div class="viewcode-block" id="PluginHandler.is_dirty"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.is_dirty">[docs]</a>    <span class="k">def</span> <span class="nf">is_dirty</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">step</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return true if the given step needs to run again.&quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_dirty_report</span><span class="p">(</span><span class="n">step</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span></div>
+
+<div class="viewcode-block" id="PluginHandler.get_dirty_report"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.get_dirty_report">[docs]</a>    <span class="k">def</span> <span class="nf">get_dirty_report</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">step</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a DirtyReport class describing why step is dirty.</span>
+
+<span class="sd">        Returns None if step is not dirty.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Retrieve the stored state for this step (assuming it has already run)</span>
+        <span class="n">state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_state</span><span class="p">(</span><span class="n">step</span><span class="p">)</span>
+        <span class="n">differing_properties</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">differing_options</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+        <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">suppress</span><span class="p">(</span><span class="ne">AttributeError</span><span class="p">):</span>
+            <span class="c1"># state.properties contains the old YAML that this step cares</span>
+            <span class="c1"># about, and we&#39;re comparing it to those same keys in the current</span>
+            <span class="c1"># YAML (self._part_properties). If they&#39;ve changed, then this step</span>
+            <span class="c1"># is dirty and needs to run again.</span>
+            <span class="n">differing_properties</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">diff_properties_of_interest</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_part_properties</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">suppress</span><span class="p">(</span><span class="ne">AttributeError</span><span class="p">):</span>
+            <span class="c1"># state.project_options contains the old project options that this</span>
+            <span class="c1"># step cares about, and we&#39;re comparing it to those same options in</span>
+            <span class="c1"># the current project. If they&#39;ve changed, then this step is dirty</span>
+            <span class="c1"># and needs to run again.</span>
+            <span class="n">differing_options</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">diff_project_options_of_interest</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">differing_properties</span> <span class="ow">or</span> <span class="n">differing_options</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">DirtyReport</span><span class="p">(</span><span class="n">differing_properties</span><span class="p">,</span> <span class="n">differing_options</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">None</span></div>
+
+<div class="viewcode-block" id="PluginHandler.should_step_run"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.should_step_run">[docs]</a>    <span class="k">def</span> <span class="nf">should_step_run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">step</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">force</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_clean</span><span class="p">(</span><span class="n">step</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PluginHandler.mark_done"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.mark_done">[docs]</a>    <span class="k">def</span> <span class="nf">mark_done</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">step</span><span class="p">,</span> <span class="n">state</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">state</span><span class="p">:</span>
+            <span class="n">state</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="n">index</span> <span class="o">=</span> <span class="n">common</span><span class="o">.</span><span class="n">COMMAND_ORDER</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">step</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_step_state_file</span><span class="p">(</span><span class="n">step</span><span class="p">),</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">yaml</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">state</span><span class="p">))</span>
+
+        <span class="c1"># We know we&#39;ve only just completed this step, so make sure any later</span>
+        <span class="c1"># steps don&#39;t have a saved state.</span>
+        <span class="k">if</span> <span class="n">index</span><span class="o">+</span><span class="mi">1</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">common</span><span class="o">.</span><span class="n">COMMAND_ORDER</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">command</span> <span class="ow">in</span> <span class="n">common</span><span class="o">.</span><span class="n">COMMAND_ORDER</span><span class="p">[</span><span class="n">index</span><span class="o">+</span><span class="mi">1</span><span class="p">:]:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">mark_cleaned</span><span class="p">(</span><span class="n">command</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PluginHandler.mark_cleaned"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.mark_cleaned">[docs]</a>    <span class="k">def</span> <span class="nf">mark_cleaned</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">step</span><span class="p">):</span>
+        <span class="n">state_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_step_state_file</span><span class="p">(</span><span class="n">step</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">state_file</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">state_file</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">statedir</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">statedir</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">rmdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">statedir</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PluginHandler.get_state"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.get_state">[docs]</a>    <span class="k">def</span> <span class="nf">get_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">step</span><span class="p">):</span>
+        <span class="n">state</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="n">state_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_step_state_file</span><span class="p">(</span><span class="n">step</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">state_file</span><span class="p">):</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">state_file</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">state</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
+
+        <span class="k">return</span> <span class="n">state</span></div>
+
+    <span class="k">def</span> <span class="nf">_step_state_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">step</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">statedir</span><span class="p">,</span> <span class="n">step</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_fetch_stage_packages</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_stage_package_handler</span><span class="o">.</span><span class="n">fetch</span><span class="p">()</span>
+        <span class="k">except</span> <span class="n">repo</span><span class="o">.</span><span class="n">PackageNotFoundError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Error downloading stage packages for part &quot;</span>
+                               <span class="s2">&quot;{!r}: {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">message</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_unpack_stage_packages</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_stage_package_handler</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">)</span>
+
+<div class="viewcode-block" id="PluginHandler.prepare_pull"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.prepare_pull">[docs]</a>    <span class="k">def</span> <span class="nf">prepare_pull</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">makedirs</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">notify_part_progress</span><span class="p">(</span><span class="s1">&#39;Preparing to pull&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fetch_stage_packages</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_unpack_stage_packages</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="PluginHandler.pull"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.pull">[docs]</a>    <span class="k">def</span> <span class="nf">pull</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">makedirs</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">notify_part_progress</span><span class="p">(</span><span class="s1">&#39;Pulling&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_handler</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">source_handler</span><span class="o">.</span><span class="n">pull</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">pull</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">mark_pull_done</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="PluginHandler.mark_pull_done"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.mark_pull_done">[docs]</a>    <span class="k">def</span> <span class="nf">mark_pull_done</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">pull_properties</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">get_pull_properties</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">mark_done</span><span class="p">(</span><span class="s1">&#39;pull&#39;</span><span class="p">,</span> <span class="n">states</span><span class="o">.</span><span class="n">PullState</span><span class="p">(</span>
+            <span class="n">pull_properties</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_part_properties</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="PluginHandler.clean_pull"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.clean_pull">[docs]</a>    <span class="k">def</span> <span class="nf">clean_pull</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hint</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_clean</span><span class="p">(</span><span class="s1">&#39;pull&#39;</span><span class="p">):</span>
+            <span class="n">hint</span> <span class="o">=</span> <span class="s1">&#39;{} {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">hint</span><span class="p">,</span> <span class="s1">&#39;(already clean)&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">notify_part_progress</span><span class="p">(</span><span class="s1">&#39;Skipping cleaning pulled source for&#39;</span><span class="p">,</span>
+                                      <span class="n">hint</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">notify_part_progress</span><span class="p">(</span><span class="s1">&#39;Cleaning pulled source for&#39;</span><span class="p">,</span> <span class="n">hint</span><span class="p">)</span>
+        <span class="c1"># Remove ubuntu cache (where stage packages are fetched)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ubuntudir</span><span class="p">):</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ubuntudir</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sourcedir</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">islink</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sourcedir</span><span class="p">):</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sourcedir</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sourcedir</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">clean_pull</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mark_cleaned</span><span class="p">(</span><span class="s1">&#39;pull&#39;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PluginHandler.prepare_build"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.prepare_build">[docs]</a>    <span class="k">def</span> <span class="nf">prepare_build</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">makedirs</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">notify_part_progress</span><span class="p">(</span><span class="s1">&#39;Preparing to build&#39;</span><span class="p">)</span>
+        <span class="c1"># Stage packages are fetched and unpacked in the pull step, but we&#39;ll</span>
+        <span class="c1"># unpack again here just in case the build step has been cleaned.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_unpack_stage_packages</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="PluginHandler.build"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.build">[docs]</a>    <span class="k">def</span> <span class="nf">build</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">makedirs</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">notify_part_progress</span><span class="p">(</span><span class="s1">&#39;Building&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">build_basedir</span><span class="p">):</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">build_basedir</span><span class="p">)</span>
+
+        <span class="c1"># FIXME: It&#39;s not necessary to ignore here anymore since it&#39;s now done</span>
+        <span class="c1"># in the Local source. However, it&#39;s left here so that it continues to</span>
+        <span class="c1"># work on old snapcraft trees that still have src symlinks.</span>
+        <span class="k">def</span> <span class="nf">ignore</span><span class="p">(</span><span class="n">directory</span><span class="p">,</span> <span class="n">files</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">directory</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">sourcedir</span><span class="p">:</span>
+                <span class="n">snaps</span> <span class="o">=</span> <span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">directory</span><span class="p">,</span> <span class="s1">&#39;*.snap&#39;</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">snaps</span><span class="p">:</span>
+                    <span class="n">snaps</span> <span class="o">=</span> <span class="p">[</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">snaps</span><span class="p">]</span>
+                    <span class="k">return</span> <span class="n">common</span><span class="o">.</span><span class="n">SNAPCRAFT_FILES</span> <span class="o">+</span> <span class="n">snaps</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">common</span><span class="o">.</span><span class="n">SNAPCRAFT_FILES</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">sourcedir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">build_basedir</span><span class="p">,</span>
+                        <span class="n">symlinks</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">ignore</span><span class="o">=</span><span class="n">ignore</span><span class="p">)</span>
+
+        <span class="n">script_runner</span> <span class="o">=</span> <span class="n">ScriptRunner</span><span class="p">(</span><span class="n">builddir</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">build_basedir</span><span class="p">)</span>
+
+        <span class="n">script_runner</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">scriptlet</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_part_properties</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;prepare&#39;</span><span class="p">))</span>
+        <span class="n">build_scriptlet</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_part_properties</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;build&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">build_scriptlet</span><span class="p">:</span>
+            <span class="n">script_runner</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">scriptlet</span><span class="o">=</span><span class="n">build_scriptlet</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">build</span><span class="p">()</span>
+        <span class="n">script_runner</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">scriptlet</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_part_properties</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;install&#39;</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">mark_build_done</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="PluginHandler.mark_build_done"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.mark_build_done">[docs]</a>    <span class="k">def</span> <span class="nf">mark_build_done</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">build_properties</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">get_build_properties</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">mark_done</span><span class="p">(</span><span class="s1">&#39;build&#39;</span><span class="p">,</span> <span class="n">states</span><span class="o">.</span><span class="n">BuildState</span><span class="p">(</span>
+            <span class="n">build_properties</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_part_properties</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="PluginHandler.clean_build"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.clean_build">[docs]</a>    <span class="k">def</span> <span class="nf">clean_build</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hint</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_clean</span><span class="p">(</span><span class="s1">&#39;build&#39;</span><span class="p">):</span>
+            <span class="n">hint</span> <span class="o">=</span> <span class="s1">&#39;{} {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">hint</span><span class="p">,</span> <span class="s1">&#39;(already clean)&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">notify_part_progress</span><span class="p">(</span><span class="s1">&#39;Skipping cleaning build for&#39;</span><span class="p">,</span>
+                                      <span class="n">hint</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">notify_part_progress</span><span class="p">(</span><span class="s1">&#39;Cleaning build for&#39;</span><span class="p">,</span> <span class="n">hint</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">build_basedir</span><span class="p">):</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">build_basedir</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">):</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">clean_build</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mark_cleaned</span><span class="p">(</span><span class="s1">&#39;build&#39;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PluginHandler.migratable_fileset_for"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.migratable_fileset_for">[docs]</a>    <span class="k">def</span> <span class="nf">migratable_fileset_for</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">step</span><span class="p">):</span>
+        <span class="n">plugin_fileset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">snap_fileset</span><span class="p">()</span>
+        <span class="n">fileset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_fileset</span><span class="p">(</span><span class="n">step</span><span class="p">)</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">includes</span> <span class="o">=</span> <span class="n">_get_includes</span><span class="p">(</span><span class="n">fileset</span><span class="p">)</span>
+        <span class="c1"># If we&#39;re priming and we don&#39;t have an explicit set of files to prime</span>
+        <span class="c1"># include the files from the stage step</span>
+        <span class="k">if</span> <span class="n">step</span> <span class="o">==</span> <span class="s1">&#39;prime&#39;</span> <span class="ow">and</span> <span class="p">(</span><span class="n">fileset</span> <span class="o">==</span> <span class="p">[</span><span class="s1">&#39;*&#39;</span><span class="p">]</span> <span class="ow">or</span>
+                                <span class="nb">len</span><span class="p">(</span><span class="n">includes</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="n">stage_fileset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_fileset</span><span class="p">(</span><span class="s1">&#39;stage&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="n">fileset</span> <span class="o">=</span> <span class="n">_combine_filesets</span><span class="p">(</span><span class="n">stage_fileset</span><span class="p">,</span> <span class="n">fileset</span><span class="p">)</span>
+
+        <span class="n">fileset</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">plugin_fileset</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">_migratable_filesets</span><span class="p">(</span><span class="n">fileset</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">installdir</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_get_fileset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">option</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">default</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">default</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;*&#39;</span><span class="p">]</span>
+
+        <span class="n">fileset</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">options</span><span class="p">,</span> <span class="n">option</span><span class="p">,</span> <span class="n">default</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">fileset</span> <span class="k">if</span> <span class="n">fileset</span> <span class="k">else</span> <span class="n">default</span>
+
+    <span class="k">def</span> <span class="nf">_organize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">fileset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_fileset</span><span class="p">(</span><span class="s1">&#39;organize&#39;</span><span class="p">,</span> <span class="p">{})</span>
+
+        <span class="n">_organize_filesets</span><span class="p">(</span><span class="n">fileset</span><span class="o">.</span><span class="n">copy</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">installdir</span><span class="p">)</span>
+
+<div class="viewcode-block" id="PluginHandler.stage"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.stage">[docs]</a>    <span class="k">def</span> <span class="nf">stage</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">makedirs</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">notify_part_progress</span><span class="p">(</span><span class="s1">&#39;Staging&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_organize</span><span class="p">()</span>
+        <span class="n">snap_files</span><span class="p">,</span> <span class="n">snap_dirs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">migratable_fileset_for</span><span class="p">(</span><span class="s1">&#39;stage&#39;</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">fixup_func</span><span class="p">(</span><span class="n">file_path</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">islink</span><span class="p">(</span><span class="n">file_path</span><span class="p">):</span>
+                <span class="k">return</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">file_path</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.pc&#39;</span><span class="p">):</span>
+                <span class="k">return</span>
+            <span class="n">repo</span><span class="o">.</span><span class="n">fix_pkg_config</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stagedir</span><span class="p">,</span> <span class="n">file_path</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">installdir</span><span class="p">)</span>
+
+        <span class="n">_migrate_files</span><span class="p">(</span><span class="n">snap_files</span><span class="p">,</span> <span class="n">snap_dirs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span>
+                       <span class="bp">self</span><span class="o">.</span><span class="n">stagedir</span><span class="p">,</span> <span class="n">fixup_func</span><span class="o">=</span><span class="n">fixup_func</span><span class="p">)</span>
+        <span class="c1"># TODO once `snappy try` is in place we will need to copy</span>
+        <span class="c1"># dependencies here too</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">mark_stage_done</span><span class="p">(</span><span class="n">snap_files</span><span class="p">,</span> <span class="n">snap_dirs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PluginHandler.mark_stage_done"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.mark_stage_done">[docs]</a>    <span class="k">def</span> <span class="nf">mark_stage_done</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_files</span><span class="p">,</span> <span class="n">snap_dirs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mark_done</span><span class="p">(</span><span class="s1">&#39;stage&#39;</span><span class="p">,</span> <span class="n">states</span><span class="o">.</span><span class="n">StageState</span><span class="p">(</span>
+            <span class="n">snap_files</span><span class="p">,</span> <span class="n">snap_dirs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_part_properties</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="PluginHandler.clean_stage"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.clean_stage">[docs]</a>    <span class="k">def</span> <span class="nf">clean_stage</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">project_staged_state</span><span class="p">,</span> <span class="n">hint</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_clean</span><span class="p">(</span><span class="s1">&#39;stage&#39;</span><span class="p">):</span>
+            <span class="n">hint</span> <span class="o">=</span> <span class="s1">&#39;{} {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">hint</span><span class="p">,</span> <span class="s1">&#39;(already clean)&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">notify_part_progress</span><span class="p">(</span><span class="s1">&#39;Skipping cleaning staging area for&#39;</span><span class="p">,</span>
+                                      <span class="n">hint</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">notify_part_progress</span><span class="p">(</span><span class="s1">&#39;Cleaning staging area for&#39;</span><span class="p">,</span> <span class="n">hint</span><span class="p">)</span>
+
+        <span class="n">state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_state</span><span class="p">(</span><span class="s1">&#39;stage&#39;</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_clean_shared_area</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stagedir</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span>
+                                    <span class="n">project_staged_state</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">MissingState</span><span class="p">(</span>
+                <span class="s2">&quot;Failed to clean step &#39;stage&#39;: Missing necessary state. &quot;</span>
+                <span class="s2">&quot;This won&#39;t work until a complete clean has occurred.&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">mark_cleaned</span><span class="p">(</span><span class="s1">&#39;stage&#39;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PluginHandler.prime"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.prime">[docs]</a>    <span class="k">def</span> <span class="nf">prime</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">makedirs</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">notify_part_progress</span><span class="p">(</span><span class="s1">&#39;Priming&#39;</span><span class="p">)</span>
+        <span class="n">snap_files</span><span class="p">,</span> <span class="n">snap_dirs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">migratable_fileset_for</span><span class="p">(</span><span class="s1">&#39;prime&#39;</span><span class="p">)</span>
+        <span class="n">_migrate_files</span><span class="p">(</span><span class="n">snap_files</span><span class="p">,</span> <span class="n">snap_dirs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stagedir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">snapdir</span><span class="p">)</span>
+
+        <span class="n">dependencies</span> <span class="o">=</span> <span class="n">_find_dependencies</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">snapdir</span><span class="p">,</span> <span class="n">snap_files</span><span class="p">)</span>
+
+        <span class="c1"># Split the necessary dependencies into their corresponding location.</span>
+        <span class="c1"># We&#39;ll both migrate and track the system dependencies, but we&#39;ll only</span>
+        <span class="c1"># track the part and staged dependencies, since they should have</span>
+        <span class="c1"># already been primed by other means, and migrating them again could</span>
+        <span class="c1"># potentially override the `stage` or `snap` filtering.</span>
+        <span class="p">(</span><span class="n">in_part</span><span class="p">,</span> <span class="n">staged</span><span class="p">,</span> <span class="n">primed</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span> <span class="o">=</span> <span class="n">_split_dependencies</span><span class="p">(</span>
+            <span class="n">dependencies</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stagedir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">snapdir</span><span class="p">)</span>
+
+        <span class="n">part_dependency_paths</span> <span class="o">=</span> <span class="p">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">in_part</span><span class="p">}</span>
+        <span class="n">staged_dependency_paths</span> <span class="o">=</span> <span class="p">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">staged</span><span class="p">}</span>
+
+        <span class="n">dependency_paths</span> <span class="o">=</span> <span class="n">part_dependency_paths</span> <span class="o">|</span> <span class="n">staged_dependency_paths</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_attributes</span><span class="o">.</span><span class="n">no_system_libraries</span><span class="p">():</span>
+            <span class="n">system_dependency_paths</span> <span class="o">=</span> <span class="p">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">system</span><span class="p">}</span>
+            <span class="n">dependency_paths</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">system_dependency_paths</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">system</span><span class="p">:</span>
+                <span class="c1"># Lots of dependencies are linked with a symlink, so we need to</span>
+                <span class="c1"># make sure we follow those symlinks when we migrate the</span>
+                <span class="c1"># dependencies.</span>
+                <span class="n">_migrate_files</span><span class="p">(</span><span class="n">system</span><span class="p">,</span> <span class="n">system_dependency_paths</span><span class="p">,</span> <span class="s1">&#39;/&#39;</span><span class="p">,</span>
+                               <span class="bp">self</span><span class="o">.</span><span class="n">snapdir</span><span class="p">,</span> <span class="n">follow_symlinks</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">mark_prime_done</span><span class="p">(</span><span class="n">snap_files</span><span class="p">,</span> <span class="n">snap_dirs</span><span class="p">,</span> <span class="n">dependency_paths</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PluginHandler.mark_prime_done"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.mark_prime_done">[docs]</a>    <span class="k">def</span> <span class="nf">mark_prime_done</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_files</span><span class="p">,</span> <span class="n">snap_dirs</span><span class="p">,</span> <span class="n">dependency_paths</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mark_done</span><span class="p">(</span><span class="s1">&#39;prime&#39;</span><span class="p">,</span> <span class="n">states</span><span class="o">.</span><span class="n">PrimeState</span><span class="p">(</span>
+            <span class="n">snap_files</span><span class="p">,</span> <span class="n">snap_dirs</span><span class="p">,</span> <span class="n">dependency_paths</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_part_properties</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="PluginHandler.clean_prime"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.clean_prime">[docs]</a>    <span class="k">def</span> <span class="nf">clean_prime</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">project_primed_state</span><span class="p">,</span> <span class="n">hint</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_clean</span><span class="p">(</span><span class="s1">&#39;prime&#39;</span><span class="p">):</span>
+            <span class="n">hint</span> <span class="o">=</span> <span class="s1">&#39;{} {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">hint</span><span class="p">,</span> <span class="s1">&#39;(already clean)&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">notify_part_progress</span><span class="p">(</span><span class="s1">&#39;Skipping cleaning priming area for&#39;</span><span class="p">,</span>
+                                      <span class="n">hint</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">notify_part_progress</span><span class="p">(</span><span class="s1">&#39;Cleaning priming area for&#39;</span><span class="p">,</span> <span class="n">hint</span><span class="p">)</span>
+
+        <span class="n">state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_state</span><span class="p">(</span><span class="s1">&#39;prime&#39;</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_clean_shared_area</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">snapdir</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span>
+                                    <span class="n">project_primed_state</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">MissingState</span><span class="p">(</span>
+                <span class="s2">&quot;Failed to clean step &#39;prime&#39;: Missing necessary state. &quot;</span>
+                <span class="s2">&quot;This won&#39;t work until a complete clean has occurred.&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">mark_cleaned</span><span class="p">(</span><span class="s1">&#39;prime&#39;</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_clean_shared_area</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shared_directory</span><span class="p">,</span> <span class="n">part_state</span><span class="p">,</span> <span class="n">project_state</span><span class="p">):</span>
+        <span class="n">primed_files</span> <span class="o">=</span> <span class="n">part_state</span><span class="o">.</span><span class="n">files</span>
+        <span class="n">primed_directories</span> <span class="o">=</span> <span class="n">part_state</span><span class="o">.</span><span class="n">directories</span>
+
+        <span class="c1"># We want to make sure we don&#39;t remove a file or directory that&#39;s</span>
+        <span class="c1"># being used by another part. So we&#39;ll examine the state for all parts</span>
+        <span class="c1"># in the project and leave any files or directories found to be in</span>
+        <span class="c1"># common.</span>
+        <span class="k">for</span> <span class="n">other_name</span><span class="p">,</span> <span class="n">other_state</span> <span class="ow">in</span> <span class="n">project_state</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">other_state</span> <span class="ow">and</span> <span class="p">(</span><span class="n">other_name</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">):</span>
+                <span class="n">primed_files</span> <span class="o">-=</span> <span class="n">other_state</span><span class="o">.</span><span class="n">files</span>
+                <span class="n">primed_directories</span> <span class="o">-=</span> <span class="n">other_state</span><span class="o">.</span><span class="n">directories</span>
+
+        <span class="c1"># Finally, clean the files and directories that are specific to this</span>
+        <span class="c1"># part.</span>
+        <span class="n">_clean_migrated_files</span><span class="p">(</span><span class="n">primed_files</span><span class="p">,</span> <span class="n">primed_directories</span><span class="p">,</span>
+                              <span class="n">shared_directory</span><span class="p">)</span>
+
+<div class="viewcode-block" id="PluginHandler.get_primed_dependency_paths"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.get_primed_dependency_paths">[docs]</a>    <span class="k">def</span> <span class="nf">get_primed_dependency_paths</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">dependency_paths</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_state</span><span class="p">(</span><span class="s1">&#39;prime&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">state</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">state</span><span class="o">.</span><span class="n">dependency_paths</span><span class="p">:</span>
+                <span class="n">dependency_paths</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">snapdir</span><span class="p">,</span> <span class="n">path</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)))</span>
+
+        <span class="k">return</span> <span class="n">dependency_paths</span></div>
+
+<div class="viewcode-block" id="PluginHandler.env"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.env">[docs]</a>    <span class="k">def</span> <span class="nf">env</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">env</span><span class="p">(</span><span class="n">root</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PluginHandler.clean"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.PluginHandler.clean">[docs]</a>    <span class="k">def</span> <span class="nf">clean</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">project_staged_state</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">project_primed_state</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+              <span class="n">step</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">hint</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">project_staged_state</span><span class="p">:</span>
+            <span class="n">project_staged_state</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">project_primed_state</span><span class="p">:</span>
+            <span class="n">project_primed_state</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_clean_steps</span><span class="p">(</span><span class="n">project_staged_state</span><span class="p">,</span> <span class="n">project_primed_state</span><span class="p">,</span>
+                              <span class="n">step</span><span class="p">,</span> <span class="n">hint</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">MissingState</span><span class="p">:</span>
+            <span class="c1"># If one of the step cleaning rules is missing state, it must be</span>
+            <span class="c1"># running on the output of an old Snapcraft. In that case, if we</span>
+            <span class="c1"># were specifically asked to clean that step we need to fail.</span>
+            <span class="c1"># Otherwise, just clean like the old Snapcraft did, and blow away</span>
+            <span class="c1"># the entire part directory.</span>
+            <span class="k">if</span> <span class="n">step</span><span class="p">:</span>
+                <span class="k">raise</span>
+
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Cleaning up for part {!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">partdir</span><span class="p">):</span>
+                <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">partdir</span><span class="p">)</span>
+
+        <span class="c1"># Remove the part directory if it&#39;s completely empty (i.e. all steps</span>
+        <span class="c1"># have been cleaned).</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">partdir</span><span class="p">)</span> <span class="ow">and</span>
+                <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">partdir</span><span class="p">)):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">rmdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">partdir</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_clean_steps</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">project_staged_state</span><span class="p">,</span> <span class="n">project_primed_state</span><span class="p">,</span>
+                     <span class="n">step</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">hint</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">if</span> <span class="n">step</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">step</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">common</span><span class="o">.</span><span class="n">COMMAND_ORDER</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="s1">&#39;{!r} is not a valid step for part {!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="n">step</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+
+            <span class="n">index</span> <span class="o">=</span> <span class="n">common</span><span class="o">.</span><span class="n">COMMAND_ORDER</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">step</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">index</span> <span class="ow">or</span> <span class="n">index</span> <span class="o">&lt;=</span> <span class="n">common</span><span class="o">.</span><span class="n">COMMAND_ORDER</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">&#39;prime&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">clean_prime</span><span class="p">(</span><span class="n">project_primed_state</span><span class="p">,</span> <span class="n">hint</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">index</span> <span class="ow">or</span> <span class="n">index</span> <span class="o">&lt;=</span> <span class="n">common</span><span class="o">.</span><span class="n">COMMAND_ORDER</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">&#39;stage&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">clean_stage</span><span class="p">(</span><span class="n">project_staged_state</span><span class="p">,</span> <span class="n">hint</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">index</span> <span class="ow">or</span> <span class="n">index</span> <span class="o">&lt;=</span> <span class="n">common</span><span class="o">.</span><span class="n">COMMAND_ORDER</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">&#39;build&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">clean_build</span><span class="p">(</span><span class="n">hint</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">index</span> <span class="ow">or</span> <span class="n">index</span> <span class="o">&lt;=</span> <span class="n">common</span><span class="o">.</span><span class="n">COMMAND_ORDER</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">&#39;pull&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">clean_pull</span><span class="p">(</span><span class="n">hint</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">_split_dependencies</span><span class="p">(</span><span class="n">dependencies</span><span class="p">,</span> <span class="n">installdir</span><span class="p">,</span> <span class="n">stagedir</span><span class="p">,</span> <span class="n">snapdir</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Split dependencies into their corresponding location.</span>
+
+<span class="sd">    Return a tuple of sets for each location.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">part_dependencies</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">staged_dependencies</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">primed_dependencies</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">system_dependencies</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">file_path</span> <span class="ow">in</span> <span class="n">dependencies</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">file_path</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">installdir</span><span class="p">):</span>
+            <span class="n">part_dependencies</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="n">installdir</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">file_path</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">stagedir</span><span class="p">):</span>
+            <span class="n">staged_dependencies</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="n">stagedir</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">file_path</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">snapdir</span><span class="p">):</span>
+            <span class="n">primed_dependencies</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="n">snapdir</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">file_path</span> <span class="o">=</span> <span class="n">file_path</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span>
+
+            <span class="c1"># This was a dependency that was resolved to be on the system.</span>
+            <span class="c1"># However, it&#39;s possible that this library is actually included in</span>
+            <span class="c1"># the snap and we just missed it because it&#39;s in a non-standard</span>
+            <span class="c1"># path. Let&#39;s make sure it isn&#39;t already in the part, stage dir, or</span>
+            <span class="c1"># prime dir. If so, add it to that set.</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">installdir</span><span class="p">,</span> <span class="n">file_path</span><span class="p">)):</span>
+                <span class="n">part_dependencies</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">stagedir</span><span class="p">,</span> <span class="n">file_path</span><span class="p">)):</span>
+                <span class="n">staged_dependencies</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">snapdir</span><span class="p">,</span> <span class="n">file_path</span><span class="p">)):</span>
+                <span class="n">primed_dependencies</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">system_dependencies</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="p">(</span><span class="n">part_dependencies</span><span class="p">,</span> <span class="n">staged_dependencies</span><span class="p">,</span> <span class="n">primed_dependencies</span><span class="p">,</span>
+            <span class="n">system_dependencies</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_expand_part_properties</span><span class="p">(</span><span class="n">part_properties</span><span class="p">,</span> <span class="n">part_schema</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Returns properties with all part schema properties included.</span>
+
+<span class="sd">    Any schema properties not set will contain their default value as defined</span>
+<span class="sd">    in the schema itself.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># First make a deep copy of the part schema. It contains nested mutables,</span>
+    <span class="c1"># and we&#39;d rather not change them.</span>
+    <span class="n">part_schema</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">part_schema</span><span class="p">)</span>
+
+    <span class="c1"># Come up with a dictionary of part schema properties and their default</span>
+    <span class="c1"># values as defined in the schema.</span>
+    <span class="n">properties</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">schema_property</span><span class="p">,</span> <span class="n">subschema</span> <span class="ow">in</span> <span class="n">part_schema</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">properties</span><span class="p">[</span><span class="n">schema_property</span><span class="p">]</span> <span class="o">=</span> <span class="n">subschema</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;default&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Now expand (overwriting if necessary) the default schema properties with</span>
+    <span class="c1"># the ones from the actual part.</span>
+    <span class="n">properties</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">part_properties</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">properties</span>
+
+
+<span class="k">def</span> <span class="nf">_merged_part_and_plugin_schemas</span><span class="p">(</span><span class="n">part_schema</span><span class="p">,</span> <span class="n">definitions_schema</span><span class="p">,</span>
+                                    <span class="n">plugin_schema</span><span class="p">):</span>
+    <span class="n">plugin_schema</span> <span class="o">=</span> <span class="n">plugin_schema</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="k">if</span> <span class="s1">&#39;properties&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">plugin_schema</span><span class="p">:</span>
+        <span class="n">plugin_schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">if</span> <span class="s1">&#39;definitions&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">plugin_schema</span><span class="p">:</span>
+        <span class="n">plugin_schema</span><span class="p">[</span><span class="s1">&#39;definitions&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="c1"># The part schema takes precedence over the plugin&#39;s schema.</span>
+    <span class="n">plugin_schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">part_schema</span><span class="p">)</span>
+    <span class="n">plugin_schema</span><span class="p">[</span><span class="s1">&#39;definitions&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">definitions_schema</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">plugin_schema</span>
+
+
+<span class="k">def</span> <span class="nf">_validate_pull_and_build_properties</span><span class="p">(</span><span class="n">plugin_name</span><span class="p">,</span> <span class="n">plugin</span><span class="p">,</span> <span class="n">part_schema</span><span class="p">,</span>
+                                        <span class="n">definitions_schema</span><span class="p">):</span>
+    <span class="n">merged_schema</span> <span class="o">=</span> <span class="n">_merged_part_and_plugin_schemas</span><span class="p">(</span>
+        <span class="n">part_schema</span><span class="p">,</span> <span class="n">definitions_schema</span><span class="p">,</span> <span class="n">plugin</span><span class="o">.</span><span class="n">schema</span><span class="p">())</span>
+    <span class="n">merged_properties</span> <span class="o">=</span> <span class="n">merged_schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">]</span>
+
+    <span class="c1"># First, validate pull properties</span>
+    <span class="n">invalid_properties</span> <span class="o">=</span> <span class="n">_validate_step_properties</span><span class="p">(</span>
+        <span class="n">plugin</span><span class="o">.</span><span class="n">get_pull_properties</span><span class="p">(),</span> <span class="n">merged_properties</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">invalid_properties</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;Invalid pull properties specified by {!r} plugin: {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">plugin_name</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">invalid_properties</span><span class="p">)))</span>
+
+    <span class="c1"># Now, validate build properties</span>
+    <span class="n">invalid_properties</span> <span class="o">=</span> <span class="n">_validate_step_properties</span><span class="p">(</span>
+        <span class="n">plugin</span><span class="o">.</span><span class="n">get_build_properties</span><span class="p">(),</span> <span class="n">merged_properties</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">invalid_properties</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;Invalid build properties specified by {!r} plugin: {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">plugin_name</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">invalid_properties</span><span class="p">)))</span>
+
+
+<span class="k">def</span> <span class="nf">_validate_step_properties</span><span class="p">(</span><span class="n">step_properties</span><span class="p">,</span> <span class="n">schema_properties</span><span class="p">):</span>
+    <span class="n">invalid_properties</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">step_property</span> <span class="ow">in</span> <span class="n">step_properties</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">step_property</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">schema_properties</span><span class="p">:</span>
+            <span class="n">invalid_properties</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">step_property</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">invalid_properties</span>
+
+
+<span class="k">def</span> <span class="nf">_make_options</span><span class="p">(</span><span class="n">part_schema</span><span class="p">,</span> <span class="n">definitions_schema</span><span class="p">,</span> <span class="n">properties</span><span class="p">,</span> <span class="n">plugin_schema</span><span class="p">):</span>
+    <span class="c1"># Make copies as these dictionaries are tampered with</span>
+    <span class="n">part_schema</span> <span class="o">=</span> <span class="n">part_schema</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">properties</span> <span class="o">=</span> <span class="n">properties</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="n">plugin_schema</span> <span class="o">=</span> <span class="n">_merged_part_and_plugin_schemas</span><span class="p">(</span>
+        <span class="n">part_schema</span><span class="p">,</span> <span class="n">definitions_schema</span><span class="p">,</span> <span class="n">plugin_schema</span><span class="p">)</span>
+
+    <span class="c1"># This is for backwards compatibility for when most of the</span>
+    <span class="c1"># schema was overridable by the plugins.</span>
+    <span class="k">if</span> <span class="s1">&#39;required&#39;</span> <span class="ow">in</span> <span class="n">plugin_schema</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">plugin_schema</span><span class="p">[</span><span class="s1">&#39;required&#39;</span><span class="p">]:</span>
+            <span class="k">del</span> <span class="n">plugin_schema</span><span class="p">[</span><span class="s1">&#39;required&#39;</span><span class="p">]</span>
+    <span class="c1"># With the same backwards compatibility in mind we need to remove</span>
+    <span class="c1"># the source entry before validation. To those concerned, it has</span>
+    <span class="c1"># already been validated.</span>
+    <span class="n">validated_properties</span> <span class="o">=</span> <span class="n">properties</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">remove_set</span> <span class="o">=</span> <span class="p">[</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">sources</span><span class="o">.</span><span class="n">get_source_defaults</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+                  <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">validated_properties</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">remove_set</span><span class="p">:</span>
+        <span class="k">del</span> <span class="n">validated_properties</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+    <span class="n">jsonschema</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">validated_properties</span><span class="p">,</span> <span class="n">plugin_schema</span><span class="p">)</span>
+
+    <span class="n">options</span> <span class="o">=</span> <span class="n">_populate_options</span><span class="p">(</span><span class="n">properties</span><span class="p">,</span> <span class="n">plugin_schema</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">options</span>
+
+
+<span class="k">def</span> <span class="nf">_populate_options</span><span class="p">(</span><span class="n">properties</span><span class="p">,</span> <span class="n">schema</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">Options</span><span class="p">():</span>
+        <span class="k">pass</span>
+
+    <span class="n">options</span> <span class="o">=</span> <span class="n">Options</span><span class="p">()</span>
+
+    <span class="n">schema_properties</span> <span class="o">=</span> <span class="n">schema</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;properties&#39;</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">schema_properties</span><span class="p">:</span>
+        <span class="n">attr_name</span> <span class="o">=</span> <span class="n">key</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="s1">&#39;_&#39;</span><span class="p">)</span>
+        <span class="n">default_value</span> <span class="o">=</span> <span class="n">schema_properties</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;default&#39;</span><span class="p">)</span>
+        <span class="n">attr_value</span> <span class="o">=</span> <span class="n">properties</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">default_value</span><span class="p">)</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="n">attr_name</span><span class="p">,</span> <span class="n">attr_value</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">options</span>
+
+
+<span class="k">def</span> <span class="nf">_get_plugin</span><span class="p">(</span><span class="n">module</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">attr</span> <span class="ow">in</span> <span class="nb">vars</span><span class="p">(</span><span class="n">module</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="nb">type</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">snapcraft</span><span class="o">.</span><span class="n">BasePlugin</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">attr</span> <span class="o">==</span> <span class="n">snapcraft</span><span class="o">.</span><span class="n">BasePlugin</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">return</span> <span class="n">attr</span>
+
+
+<span class="k">def</span> <span class="nf">_load_local</span><span class="p">(</span><span class="n">module_name</span><span class="p">,</span> <span class="n">local_plugin_dir</span><span class="p">):</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">path</span> <span class="o">=</span> <span class="p">[</span><span class="n">local_plugin_dir</span><span class="p">]</span> <span class="o">+</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span>
+    <span class="n">module</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="n">module_name</span><span class="p">)</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">module</span>
+
+
+<div class="viewcode-block" id="load_plugin"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.load_plugin">[docs]</a><span class="k">def</span> <span class="nf">load_plugin</span><span class="p">(</span><span class="n">part_name</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">plugin_name</span><span class="p">,</span> <span class="n">part_properties</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                <span class="n">project_options</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">part_schema</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                <span class="n">definitions_schema</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">part_properties</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">part_properties</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="n">part_schema</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">part_schema</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="n">definitions_schema</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">definitions_schema</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="n">project_options</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">project_options</span> <span class="o">=</span> <span class="n">snapcraft</span><span class="o">.</span><span class="n">ProjectOptions</span><span class="p">()</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Setting up part {!r} with plugin {!r} and &#39;</span>
+                 <span class="s1">&#39;properties {!r}.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">part_name</span><span class="p">,</span>
+                                           <span class="n">plugin_name</span><span class="p">,</span>
+                                           <span class="n">part_properties</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">PluginHandler</span><span class="p">(</span><span class="n">plugin_name</span><span class="o">=</span><span class="n">plugin_name</span><span class="p">,</span>
+                         <span class="n">part_name</span><span class="o">=</span><span class="n">part_name</span><span class="p">,</span>
+                         <span class="n">part_properties</span><span class="o">=</span><span class="n">part_properties</span><span class="p">,</span>
+                         <span class="n">project_options</span><span class="o">=</span><span class="n">project_options</span><span class="p">,</span>
+                         <span class="n">part_schema</span><span class="o">=</span><span class="n">part_schema</span><span class="p">,</span>
+                         <span class="n">definitions_schema</span><span class="o">=</span><span class="n">definitions_schema</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">_migratable_filesets</span><span class="p">(</span><span class="n">fileset</span><span class="p">,</span> <span class="n">srcdir</span><span class="p">):</span>
+    <span class="n">includes</span><span class="p">,</span> <span class="n">excludes</span> <span class="o">=</span> <span class="n">_get_file_list</span><span class="p">(</span><span class="n">fileset</span><span class="p">)</span>
+
+    <span class="n">include_files</span> <span class="o">=</span> <span class="n">_generate_include_set</span><span class="p">(</span><span class="n">srcdir</span><span class="p">,</span> <span class="n">includes</span><span class="p">)</span>
+    <span class="n">exclude_files</span><span class="p">,</span> <span class="n">exclude_dirs</span> <span class="o">=</span> <span class="n">_generate_exclude_set</span><span class="p">(</span><span class="n">srcdir</span><span class="p">,</span> <span class="n">excludes</span><span class="p">)</span>
+
+    <span class="c1"># And chop files, including whole trees if any dirs are mentioned</span>
+    <span class="n">snap_files</span> <span class="o">=</span> <span class="n">include_files</span> <span class="o">-</span> <span class="n">exclude_files</span>
+    <span class="k">for</span> <span class="n">exclude_dir</span> <span class="ow">in</span> <span class="n">exclude_dirs</span><span class="p">:</span>
+        <span class="n">snap_files</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">snap_files</span>
+                          <span class="k">if</span> <span class="ow">not</span> <span class="n">x</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">exclude_dir</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span><span class="p">)])</span>
+
+    <span class="c1"># Separate dirs from files</span>
+    <span class="n">snap_dirs</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">snap_files</span>
+                     <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">srcdir</span><span class="p">,</span> <span class="n">x</span><span class="p">))</span> <span class="ow">and</span>
+                     <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">islink</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">srcdir</span><span class="p">,</span> <span class="n">x</span><span class="p">))])</span>
+    <span class="n">snap_files</span> <span class="o">=</span> <span class="n">snap_files</span> <span class="o">-</span> <span class="n">snap_dirs</span>
+
+    <span class="c1"># Make sure we also obtain the parent directories of files</span>
+    <span class="k">for</span> <span class="n">snap_file</span> <span class="ow">in</span> <span class="n">snap_files</span><span class="p">:</span>
+        <span class="n">dirname</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">snap_file</span><span class="p">)</span>
+        <span class="k">while</span> <span class="n">dirname</span><span class="p">:</span>
+            <span class="n">snap_dirs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">dirname</span><span class="p">)</span>
+            <span class="n">dirname</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">dirname</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">snap_files</span><span class="p">,</span> <span class="n">snap_dirs</span>
+
+
+<span class="k">def</span> <span class="nf">_migrate_files</span><span class="p">(</span><span class="n">snap_files</span><span class="p">,</span> <span class="n">snap_dirs</span><span class="p">,</span> <span class="n">srcdir</span><span class="p">,</span> <span class="n">dstdir</span><span class="p">,</span> <span class="n">missing_ok</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                   <span class="n">follow_symlinks</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">fixup_func</span><span class="o">=</span><span class="k">lambda</span> <span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="bp">None</span><span class="p">):</span>
+
+    <span class="k">for</span> <span class="n">directory</span> <span class="ow">in</span> <span class="n">snap_dirs</span><span class="p">:</span>
+        <span class="n">src</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">srcdir</span><span class="p">,</span> <span class="n">directory</span><span class="p">)</span>
+        <span class="n">dst</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dstdir</span><span class="p">,</span> <span class="n">directory</span><span class="p">)</span>
+
+        <span class="n">snapcraft</span><span class="o">.</span><span class="n">file_utils</span><span class="o">.</span><span class="n">create_similar_directory</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">dst</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">snap_file</span> <span class="ow">in</span> <span class="n">snap_files</span><span class="p">:</span>
+        <span class="n">src</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">srcdir</span><span class="p">,</span> <span class="n">snap_file</span><span class="p">)</span>
+        <span class="n">dst</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dstdir</span><span class="p">,</span> <span class="n">snap_file</span><span class="p">)</span>
+
+        <span class="n">snapcraft</span><span class="o">.</span><span class="n">file_utils</span><span class="o">.</span><span class="n">create_similar_directory</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">src</span><span class="p">),</span>
+                                                      <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">dst</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">missing_ok</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">src</span><span class="p">):</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># If the file is already here and it&#39;s a symlink, leave it alone.</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">islink</span><span class="p">(</span><span class="n">dst</span><span class="p">):</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># Otherwise, remove and re-link it.</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">dst</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">dst</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">src</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.pc&#39;</span><span class="p">):</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">copy2</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">dst</span><span class="p">,</span> <span class="n">follow_symlinks</span><span class="o">=</span><span class="n">follow_symlinks</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">file_utils</span><span class="o">.</span><span class="n">link_or_copy</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">dst</span><span class="p">,</span> <span class="n">follow_symlinks</span><span class="o">=</span><span class="n">follow_symlinks</span><span class="p">)</span>
+
+        <span class="n">fixup_func</span><span class="p">(</span><span class="n">dst</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_organize_filesets</span><span class="p">(</span><span class="n">fileset</span><span class="p">,</span> <span class="n">base_dir</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">fileset</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;*&#39;</span> <span class="ow">in</span> <span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">]):</span>
+        <span class="n">src</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">base_dir</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+        <span class="n">dst</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">base_dir</span><span class="p">,</span> <span class="n">fileset</span><span class="p">[</span><span class="n">key</span><span class="p">])</span>
+
+        <span class="n">sources</span> <span class="o">=</span> <span class="n">iglob</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">src</span> <span class="ow">in</span> <span class="n">sources</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">src</span><span class="p">)</span> <span class="ow">and</span> <span class="s1">&#39;*&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">key</span><span class="p">:</span>
+                <span class="n">file_utils</span><span class="o">.</span><span class="n">link_or_copy_tree</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">dst</span><span class="p">)</span>
+                <span class="c1"># TODO create alternate organization location to avoid</span>
+                <span class="c1"># deletions.</span>
+                <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">src</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">dst</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">EnvironmentError</span><span class="p">(</span>
+                    <span class="s1">&#39;Trying to organize file {key!r} to {dst!r}, &#39;</span>
+                    <span class="s1">&#39;but {dst!r} already exists&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">dst</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">dst</span><span class="p">,</span> <span class="n">base_dir</span><span class="p">)))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">dst</span><span class="p">),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+                <span class="n">shutil</span><span class="o">.</span><span class="n">move</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">dst</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_clean_migrated_files</span><span class="p">(</span><span class="n">snap_files</span><span class="p">,</span> <span class="n">snap_dirs</span><span class="p">,</span> <span class="n">directory</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">snap_file</span> <span class="ow">in</span> <span class="n">snap_files</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">directory</span><span class="p">,</span> <span class="n">snap_file</span><span class="p">))</span>
+
+    <span class="c1"># snap_dirs may not be ordered so that subdirectories come before</span>
+    <span class="c1"># parents, and we want to be able to remove directories if possible, so</span>
+    <span class="c1"># we&#39;ll sort them in reverse here to get subdirectories before parents.</span>
+    <span class="n">snap_dirs</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">snap_dirs</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">snap_dir</span> <span class="ow">in</span> <span class="n">snap_dirs</span><span class="p">:</span>
+        <span class="n">migrated_directory</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">directory</span><span class="p">,</span> <span class="n">snap_dir</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">migrated_directory</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">rmdir</span><span class="p">(</span><span class="n">migrated_directory</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_find_dependencies</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">part_files</span><span class="p">):</span>
+    <span class="n">ms</span> <span class="o">=</span> <span class="n">magic</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">magic</span><span class="o">.</span><span class="n">NONE</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">ms</span><span class="o">.</span><span class="n">load</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s1">&#39;Cannot load magic header detection&#39;</span><span class="p">)</span>
+
+    <span class="n">elf_files</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+    <span class="n">fs_encoding</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">getfilesystemencoding</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">part_file</span> <span class="ow">in</span> <span class="n">part_files</span><span class="p">:</span>
+        <span class="c1"># Filter out object (*.o) files-- we only care about binaries.</span>
+        <span class="k">if</span> <span class="n">part_file</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.o&#39;</span><span class="p">):</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># No need to crawl links-- the original should be here, too.</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">part_file</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">islink</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Skipped link {!r} while finding dependencies&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">path</span><span class="p">))</span>
+            <span class="k">continue</span>
+
+        <span class="n">path</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">fs_encoding</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">&#39;surrogateescape&#39;</span><span class="p">)</span>
+        <span class="c1"># Finally, make sure this is actually an ELF before queueing it up</span>
+        <span class="c1"># for an ldd call.</span>
+        <span class="n">file_m</span> <span class="o">=</span> <span class="n">ms</span><span class="o">.</span><span class="n">file</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">file_m</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;ELF&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="s1">&#39;dynamically linked&#39;</span> <span class="ow">in</span> <span class="n">file_m</span><span class="p">:</span>
+            <span class="n">elf_files</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+
+    <span class="n">dependencies</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">elf_file</span> <span class="ow">in</span> <span class="n">elf_files</span><span class="p">:</span>
+        <span class="n">dependencies</span> <span class="o">+=</span> <span class="n">libraries</span><span class="o">.</span><span class="n">get_dependencies</span><span class="p">(</span><span class="n">elf_file</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="nb">set</span><span class="p">(</span><span class="n">dependencies</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_get_file_list</span><span class="p">(</span><span class="n">stage_set</span><span class="p">):</span>
+    <span class="n">includes</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">excludes</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">stage_set</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">):</span>
+            <span class="n">excludes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+        <span class="k">elif</span> <span class="n">item</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\\</span><span class="s1">&#39;</span><span class="p">):</span>
+            <span class="n">includes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">includes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+
+    <span class="n">_validate_relative_paths</span><span class="p">(</span><span class="n">includes</span> <span class="o">+</span> <span class="n">excludes</span><span class="p">)</span>
+
+    <span class="n">includes</span> <span class="o">=</span> <span class="n">includes</span> <span class="ow">or</span> <span class="p">[</span><span class="s1">&#39;*&#39;</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">includes</span><span class="p">,</span> <span class="n">excludes</span>
+
+
+<span class="k">def</span> <span class="nf">_generate_include_set</span><span class="p">(</span><span class="n">directory</span><span class="p">,</span> <span class="n">includes</span><span class="p">):</span>
+    <span class="n">include_files</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">include</span> <span class="ow">in</span> <span class="n">includes</span><span class="p">:</span>
+        <span class="k">if</span> <span class="s1">&#39;*&#39;</span> <span class="ow">in</span> <span class="n">include</span><span class="p">:</span>
+            <span class="n">pattern</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">directory</span><span class="p">,</span> <span class="n">include</span><span class="p">)</span>
+            <span class="n">matches</span> <span class="o">=</span> <span class="n">iglob</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+            <span class="n">include_files</span> <span class="o">|=</span> <span class="nb">set</span><span class="p">(</span><span class="n">matches</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">include_files</span> <span class="o">|=</span> <span class="nb">set</span><span class="p">([</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">directory</span><span class="p">,</span> <span class="n">include</span><span class="p">),</span> <span class="p">])</span>
+
+    <span class="n">include_dirs</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">include_files</span> <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">x</span><span class="p">)]</span>
+    <span class="n">include_files</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">directory</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">include_files</span><span class="p">])</span>
+
+    <span class="c1"># Expand includeFiles, so that an exclude like &#39;*/*.so&#39; will still match</span>
+    <span class="c1"># files from an include like &#39;lib&#39;</span>
+    <span class="k">for</span> <span class="n">include_dir</span> <span class="ow">in</span> <span class="n">include_dirs</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">dirs</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span><span class="n">include_dir</span><span class="p">):</span>
+            <span class="n">include_files</span> <span class="o">|=</span> \
+                <span class="nb">set</span><span class="p">([</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">d</span><span class="p">),</span> <span class="n">directory</span><span class="p">)</span>
+                     <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dirs</span><span class="p">])</span>
+            <span class="n">include_files</span> <span class="o">|=</span> \
+                <span class="nb">set</span><span class="p">([</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">f</span><span class="p">),</span> <span class="n">directory</span><span class="p">)</span>
+                     <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">include_files</span>
+
+
+<span class="k">def</span> <span class="nf">_generate_exclude_set</span><span class="p">(</span><span class="n">directory</span><span class="p">,</span> <span class="n">excludes</span><span class="p">):</span>
+    <span class="n">exclude_files</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">exclude</span> <span class="ow">in</span> <span class="n">excludes</span><span class="p">:</span>
+        <span class="n">pattern</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">directory</span><span class="p">,</span> <span class="n">exclude</span><span class="p">)</span>
+        <span class="n">matches</span> <span class="o">=</span> <span class="n">iglob</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="n">exclude_files</span> <span class="o">|=</span> <span class="nb">set</span><span class="p">(</span><span class="n">matches</span><span class="p">)</span>
+
+    <span class="n">exclude_dirs</span> <span class="o">=</span> <span class="p">[</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">directory</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">exclude_files</span> <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">x</span><span class="p">)]</span>
+    <span class="n">exclude_files</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">directory</span><span class="p">)</span>
+                         <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">exclude_files</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">exclude_files</span><span class="p">,</span> <span class="n">exclude_dirs</span>
+
+
+<span class="k">def</span> <span class="nf">_validate_relative_paths</span><span class="p">(</span><span class="n">files</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isabs</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">PluginError</span><span class="p">(</span><span class="s1">&#39;path &quot;{}&quot; must be relative&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">d</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">_file_collides</span><span class="p">(</span><span class="n">file_this</span><span class="p">,</span> <span class="n">file_other</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">file_this</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.pc&#39;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="n">filecmp</span><span class="o">.</span><span class="n">cmp</span><span class="p">(</span><span class="n">file_this</span><span class="p">,</span> <span class="n">file_other</span><span class="p">,</span> <span class="n">shallow</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+    <span class="n">pc_file_1</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">file_this</span><span class="p">)</span>
+    <span class="n">pc_file_2</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">file_other</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">lines</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">pc_file_1</span><span class="p">,</span> <span class="n">pc_file_2</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">lines</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">),</span> <span class="n">lines</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="n">line</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;prefix=&#39;</span><span class="p">):</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="n">line</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">line</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                    <span class="k">return</span> <span class="bp">True</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">e</span> <span class="kn">from</span> <span class="nn">e</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">pc_file_1</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="n">pc_file_2</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="k">return</span> <span class="bp">False</span>
+
+
+<div class="viewcode-block" id="check_for_collisions"><a class="viewcode-back" href="../../../snapcraft.internal.pluginhandler.html#snapcraft.internal.pluginhandler.check_for_collisions">[docs]</a><span class="k">def</span> <span class="nf">check_for_collisions</span><span class="p">(</span><span class="n">parts</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Raises an EnvironmentError if conflicts are found between two parts.&quot;&quot;&quot;</span>
+    <span class="n">parts_files</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">:</span>
+        <span class="c1"># Gather our own files up</span>
+        <span class="n">part_files</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">part</span><span class="o">.</span><span class="n">migratable_fileset_for</span><span class="p">(</span><span class="s1">&#39;stage&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Scan previous parts for collisions</span>
+        <span class="k">for</span> <span class="n">other_part_name</span> <span class="ow">in</span> <span class="n">parts_files</span><span class="p">:</span>
+            <span class="n">common</span> <span class="o">=</span> <span class="n">part_files</span> <span class="o">&amp;</span> <span class="n">parts_files</span><span class="p">[</span><span class="n">other_part_name</span><span class="p">][</span><span class="s1">&#39;files&#39;</span><span class="p">]</span>
+            <span class="n">conflict_files</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">common</span><span class="p">:</span>
+                <span class="n">this</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">part</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+                <span class="n">other</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                    <span class="n">parts_files</span><span class="p">[</span><span class="n">other_part_name</span><span class="p">][</span><span class="s1">&#39;installdir&#39;</span><span class="p">],</span>
+                    <span class="n">f</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">islink</span><span class="p">(</span><span class="n">this</span><span class="p">)</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">islink</span><span class="p">(</span><span class="n">other</span><span class="p">):</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="n">_file_collides</span><span class="p">(</span><span class="n">this</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+                    <span class="n">conflict_files</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">conflict_files</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">SnapcraftPartConflictError</span><span class="p">(</span>
+                    <span class="n">other_part_name</span><span class="o">=</span><span class="n">other_part_name</span><span class="p">,</span>
+                    <span class="n">part_name</span><span class="o">=</span><span class="n">part</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                    <span class="n">conflict_files</span><span class="o">=</span><span class="n">conflict_files</span><span class="p">)</span>
+
+        <span class="c1"># And add our files to the list</span>
+        <span class="n">parts_files</span><span class="p">[</span><span class="n">part</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;files&#39;</span><span class="p">:</span> <span class="n">part_files</span><span class="p">,</span>
+                                  <span class="s1">&#39;installdir&#39;</span><span class="p">:</span> <span class="n">part</span><span class="o">.</span><span class="n">installdir</span><span class="p">}</span></div>
+
+
+<span class="k">def</span> <span class="nf">_get_includes</span><span class="p">(</span><span class="n">fileset</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">fileset</span> <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;-&#39;</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">_get_excludes</span><span class="p">(</span><span class="n">fileset</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">fileset</span> <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;-&#39;</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">_combine_filesets</span><span class="p">(</span><span class="n">starting_fileset</span><span class="p">,</span> <span class="n">modifying_fileset</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Combine filesets if modifying_fileset is an explicit or implicit</span>
+<span class="sd">    wildcard.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">starting_excludes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">_get_excludes</span><span class="p">(</span><span class="n">starting_fileset</span><span class="p">))</span>
+    <span class="n">modifying_includes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">_get_includes</span><span class="p">(</span><span class="n">modifying_fileset</span><span class="p">))</span>
+
+    <span class="n">contradicting_fileset</span> <span class="o">=</span> <span class="nb">set</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">starting_excludes</span><span class="p">,</span>
+                                             <span class="n">modifying_includes</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">contradicting_fileset</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">PrimeFileConflictError</span><span class="p">(</span><span class="n">fileset</span><span class="o">=</span><span class="n">contradicting_fileset</span><span class="p">)</span>
+
+    <span class="n">to_combine</span> <span class="o">=</span> <span class="bp">False</span>
+    <span class="c1"># combine if starting_fileset has a wildcard</span>
+    <span class="c1"># XXX: should this only be a single wildcard and possibly excludes?</span>
+    <span class="k">if</span> <span class="s1">&#39;*&#39;</span> <span class="ow">in</span> <span class="n">modifying_fileset</span><span class="p">:</span>
+        <span class="n">to_combine</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="n">modifying_fileset</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="s1">&#39;*&#39;</span><span class="p">)</span>
+
+    <span class="c1"># combine if modifying_fileset is only excludes</span>
+    <span class="k">if</span> <span class="nb">set</span><span class="p">([</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">modifying_fileset</span><span class="p">])</span> <span class="o">==</span> <span class="nb">set</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">):</span>
+        <span class="n">to_combine</span> <span class="o">=</span> <span class="bp">True</span>
+
+    <span class="k">if</span> <span class="n">to_combine</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">starting_fileset</span> <span class="o">+</span> <span class="n">modifying_fileset</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">modifying_fileset</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  <li><a href="../../snapcraft.html">snapcraft</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

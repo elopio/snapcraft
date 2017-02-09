@@ -1,0 +1,137 @@
+snapcraft.internal package
+==========================
+
+Subpackages
+-----------
+
+.. toctree::
+
+    snapcraft.internal.cache
+    snapcraft.internal.deltas
+    snapcraft.internal.pluginhandler
+    snapcraft.internal.sources
+    snapcraft.internal.states
+
+Submodules
+----------
+
+snapcraft.internal.common module
+--------------------------------
+
+.. automodule:: snapcraft.internal.common
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.internal.deprecations module
+--------------------------------------
+
+.. automodule:: snapcraft.internal.deprecations
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.internal.dirs module
+------------------------------
+
+.. automodule:: snapcraft.internal.dirs
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.internal.errors module
+--------------------------------
+
+.. automodule:: snapcraft.internal.errors
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.internal.indicators module
+------------------------------------
+
+.. automodule:: snapcraft.internal.indicators
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.internal.libraries module
+-----------------------------------
+
+.. automodule:: snapcraft.internal.libraries
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.internal.lifecycle module
+-----------------------------------
+
+.. automodule:: snapcraft.internal.lifecycle
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.internal.log module
+-----------------------------
+
+.. automodule:: snapcraft.internal.log
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.internal.lxd module
+-----------------------------
+
+.. automodule:: snapcraft.internal.lxd
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.internal.meta module
+------------------------------
+
+.. automodule:: snapcraft.internal.meta
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.internal.parser module
+--------------------------------
+
+.. automodule:: snapcraft.internal.parser
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.internal.parts module
+-------------------------------
+
+.. automodule:: snapcraft.internal.parts
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.internal.project_loader module
+----------------------------------------
+
+.. automodule:: snapcraft.internal.project_loader
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.internal.repo module
+------------------------------
+
+.. automodule:: snapcraft.internal.repo
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Module contents
+---------------
+
+.. automodule:: snapcraft.internal
+    :members:
+    :undoc-members:
+    :show-inheritance:

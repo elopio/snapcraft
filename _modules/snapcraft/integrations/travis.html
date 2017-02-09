@@ -1,0 +1,325 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.integrations.travis &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../../index.html" />
+    <link rel="up" title="snapcraft.integrations" href="../integrations.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.integrations.travis</h1><div class="highlight"><pre>
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2015 Canonical Ltd</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="sd">&quot;&quot;&quot;Snapcraft integration for Travis (CI).</span>
+
+<span class="sd">This is an *EXPERIMENTAL* feature and subject to incompatible changes in</span>
+<span class="sd">the future, please use with caution.</span>
+
+<span class="sd">This command currently depends on a working `travis` CLI environment and</span>
+<span class="sd">a previously initialized Travis project (`.travis.yml`).</span>
+
+<span class="sd">Make sure your Travis project is also configured to &quot;Build pushes&quot;, this</span>
+<span class="sd">way every new push to `master` will result in a new snap revision in the</span>
+<span class="sd">Store.</span>
+
+<span class="sd">This operation will acquire properly attenuated Store credentials and</span>
+<span class="sd">encrypt them for use in your testbed (`.snapcraft/travis_snapcraft.cfg`),</span>
+<span class="sd">only Travis has the private key to decrypt it and will be only available</span>
+<span class="sd">to branches of the same repository, not forks.</span>
+
+<span class="sd">Then it will adjust Travis configuration (&#39;.travis.yml&#39;) with the commands</span>
+<span class="sd">to decrypt credentials during &#39;after_success&#39; phase and install latest</span>
+<span class="sd">`snapcraft` to build and release your snap (inside a ubuntu:xenial docker</span>
+<span class="sd">container) during the &#39;deploy&#39; phase.</span>
+
+<span class="sd">See the example below::</span>
+
+<span class="sd">    sudo: required</span>
+<span class="sd">    services:</span>
+<span class="sd">    - docker</span>
+<span class="sd">    after_success:</span>
+<span class="sd">    - openssl aes-256-cbc -K &lt;travis-key&gt; -iv &lt;travis-iv&gt;</span>
+<span class="sd">      -in .snapcraft/travis_snapcraft.cfg</span>
+<span class="sd">      -out .snapcraft/snapcraft.cfg -d</span>
+<span class="sd">    deploy:</span>
+<span class="sd">      skip_cleanup: true</span>
+<span class="sd">      provider: script</span>
+<span class="sd">      script: docker run -v $(pwd):$(pwd) -t ubuntu:xenial sh -c</span>
+<span class="sd">        &quot;apt update -qq &amp;&amp; apt install snapcraft -y &amp;&amp; cd $(pwd) &amp;&amp;</span>
+<span class="sd">        snapcraft &amp;&amp; snapcraft push *.snap --release edge&quot;</span>
+<span class="sd">      on:</span>
+<span class="sd">        branch: master</span>
+
+<span class="sd">The dedicated credentials will be functional for exactly 1 year or until</span>
+<span class="sd">a password change on the related Ubuntu One SSO account. In order to</span>
+<span class="sd">refresh the project credentials, please run the following command::</span>
+
+<span class="sd">    $ snapcraft enable-ci travis --refresh</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">contextlib</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ExitStack</span><span class="p">,</span>
+    <span class="n">contextmanager</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">tempfile</span>
+<span class="kn">import</span> <span class="nn">yaml</span>
+
+<span class="kn">from</span> <span class="nn">snapcraft</span> <span class="kn">import</span> <span class="n">storeapi</span>
+<span class="kn">from</span> <span class="nn">snapcraft.file_utils</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">requires_command_success</span><span class="p">,</span>
+    <span class="n">requires_path_exists</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">snapcraft.internal</span> <span class="kn">import</span> <span class="n">load_config</span>
+<span class="kn">from</span> <span class="nn">snapcraft._store</span> <span class="kn">import</span> <span class="n">_login</span>
+<span class="kn">from</span> <span class="nn">snapcraft.config</span> <span class="kn">import</span> <span class="n">LOCAL_CONFIG_FILENAME</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+<span class="n">TRAVIS_CONFIG_FILENAME</span> <span class="o">=</span> <span class="s1">&#39;.travis.yml&#39;</span>
+<span class="n">ENCRYPTED_CONFIG_FILENAME</span> <span class="o">=</span> <span class="s1">&#39;.snapcraft/travis_snapcraft.cfg&#39;</span>
+
+
+<div class="viewcode-block" id="TravisRuntimeError"><a class="viewcode-back" href="../../../snapcraft.integrations.html#snapcraft.integrations.travis.TravisRuntimeError">[docs]</a><span class="k">class</span> <span class="nc">TravisRuntimeError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Local runtime error to not confuse importlib.</span>
+
+<span class="sd">    Raising `RuntimeError` from a module imported in runtime</span>
+<span class="sd">    results in python hanging instead of just exiting.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<span class="k">def</span> <span class="nf">_acquire_and_encrypt_credentials</span><span class="p">(</span><span class="n">packages</span><span class="p">,</span> <span class="n">channels</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Acquire and encrypt Store credentials for Travis jobs.&quot;&quot;&quot;</span>
+    <span class="c1"># XXX cprov 20161116: Needs caveat syntax for restricting origins</span>
+    <span class="c1"># (IP or reverse-dns) but Travis sudo-enabled containers, needed for</span>
+    <span class="c1"># running xenial snapcraft, do not have static egress routes.</span>
+    <span class="c1"># See https://docs.travis-ci.com/user/ip-addresses.</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Acquiring specific authorization information ...&#39;</span><span class="p">)</span>
+    <span class="n">store</span> <span class="o">=</span> <span class="n">storeapi</span><span class="o">.</span><span class="n">StoreClient</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_login</span><span class="p">(</span><span class="n">store</span><span class="p">,</span> <span class="n">packages</span><span class="o">=</span><span class="n">packages</span><span class="p">,</span> <span class="n">channels</span><span class="o">=</span><span class="n">channels</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">TravisRuntimeError</span><span class="p">(</span>
+            <span class="s1">&#39;Cannot continue without logging in successfully.&#39;</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+        <span class="s1">&#39;Encrypting authorization for Travis and adjusting project to &#39;</span>
+        <span class="s1">&#39;automatically decrypt and use it during &quot;after_success&quot;.&#39;</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">NamedTemporaryFile</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fd</span><span class="p">:</span>
+        <span class="n">store</span><span class="o">.</span><span class="n">conf</span><span class="o">.</span><span class="n">parser</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">fd</span><span class="p">)</span>
+        <span class="n">fd</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">LOCAL_CONFIG_FILENAME</span><span class="p">),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s1">&#39;travis&#39;</span><span class="p">,</span> <span class="s1">&#39;encrypt-file&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;--force&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;--add&#39;</span><span class="p">,</span> <span class="s1">&#39;after_success&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;--decrypt-to&#39;</span><span class="p">,</span> <span class="n">LOCAL_CONFIG_FILENAME</span><span class="p">,</span>
+            <span class="n">fd</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">ENCRYPTED_CONFIG_FILENAME</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">subprocess</span><span class="o">.</span><span class="n">check_output</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">CalledProcessError</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">TravisRuntimeError</span><span class="p">(</span>
+                <span class="s1">&#39;`travis encrypt-file` failed: {}</span><span class="se">\n</span><span class="s1">{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">err</span><span class="o">.</span><span class="n">returncode</span><span class="p">,</span> <span class="n">err</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">decode</span><span class="p">()))</span>
+
+
+<span class="nd">@contextmanager</span>
+<div class="viewcode-block" id="requires_travis_preconditions"><a class="viewcode-back" href="../../../snapcraft.integrations.html#snapcraft.integrations.travis.requires_travis_preconditions">[docs]</a><span class="k">def</span> <span class="nf">requires_travis_preconditions</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Verify all Travis CI integration preconditions.&quot;&quot;&quot;</span>
+    <span class="n">required</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">requires_command_success</span><span class="p">(</span>
+            <span class="s1">&#39;travis settings&#39;</span><span class="p">,</span>
+            <span class="n">not_found_fmt</span><span class="o">=</span><span class="p">(</span>
+                <span class="s1">&#39;Travis CLI (`{cmd_list[0]}`) is not available.</span><span class="se">\n</span><span class="s1">&#39;</span>
+                <span class="s1">&#39;Please install it before trying this command again:</span><span class="se">\n\n</span><span class="s1">&#39;</span>
+                <span class="s1">&#39;    $ sudo apt install ruby-dev ruby-ffi libffi-dev</span><span class="se">\n</span><span class="s1">&#39;</span>
+                <span class="s1">&#39;    $ sudo gem install travis</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">),</span>
+            <span class="n">failure_fmt</span><span class="o">=</span><span class="p">(</span>
+                <span class="s1">&#39;Travis CLI (`{command}`) is not functional or you are not &#39;</span>
+                <span class="s1">&#39;allowed to access this repository settings.</span><span class="se">\n</span><span class="s1">&#39;</span>
+                <span class="s1">&#39;Make sure it works correctly in your system before trying &#39;</span>
+                <span class="s1">&#39;this command again.&#39;</span><span class="p">)</span>
+        <span class="p">),</span>
+        <span class="n">requires_command_success</span><span class="p">(</span>
+            <span class="s1">&#39;git status&#39;</span><span class="p">,</span>
+            <span class="n">not_found_fmt</span><span class="o">=</span><span class="p">(</span>
+                <span class="s1">&#39;Git (`{cmd_list[0]}`) is not available, this tool cannot &#39;</span>
+                <span class="s1">&#39;verify its prerequisites.</span><span class="se">\n</span><span class="s1">&#39;</span>
+                <span class="s1">&#39;Please install it before trying this command again:</span><span class="se">\n\n</span><span class="s1">&#39;</span>
+                <span class="s1">&#39;    $ sudo apt install git</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">),</span>
+            <span class="n">failure_fmt</span><span class="o">=</span><span class="p">(</span>
+                <span class="s1">&#39;The current directory is not a Git repository.</span><span class="se">\n</span><span class="s1">&#39;</span>
+                <span class="s1">&#39;Please switch to the desired project repository where &#39;</span>
+                <span class="s1">&#39;Travis should be enabled.&#39;</span><span class="p">)</span>
+        <span class="p">),</span>
+        <span class="n">requires_path_exists</span><span class="p">(</span>
+            <span class="n">TRAVIS_CONFIG_FILENAME</span><span class="p">,</span>
+            <span class="n">error_fmt</span><span class="o">=</span><span class="p">(</span>
+                <span class="s1">&#39;Travis project is not initialized for the current &#39;</span>
+                <span class="s1">&#39;directory.</span><span class="se">\n</span><span class="s1">&#39;</span>
+                <span class="s1">&#39;Please initialize Travis project (e.g. `travis init`) with &#39;</span>
+                <span class="s1">&#39;appropriate parameters.&#39;</span><span class="p">)</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+    <span class="k">with</span> <span class="n">ExitStack</span><span class="p">()</span> <span class="k">as</span> <span class="n">cm</span><span class="p">:</span>
+        <span class="p">[</span><span class="n">cm</span><span class="o">.</span><span class="n">enter_context</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">required</span><span class="p">]</span>
+        <span class="k">yield</span></div>
+
+
+<span class="nd">@requires_travis_preconditions</span><span class="p">()</span>
+<div class="viewcode-block" id="refresh"><a class="viewcode-back" href="../../../snapcraft.integrations.html#snapcraft.integrations.travis.refresh">[docs]</a><span class="k">def</span> <span class="nf">refresh</span><span class="p">():</span>
+    <span class="n">series</span> <span class="o">=</span> <span class="n">storeapi</span><span class="o">.</span><span class="n">constants</span><span class="o">.</span><span class="n">DEFAULT_SERIES</span>
+    <span class="n">project_config</span> <span class="o">=</span> <span class="n">load_config</span><span class="p">()</span>
+    <span class="n">snap_name</span> <span class="o">=</span> <span class="n">project_config</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+        <span class="s1">&#39;Refreshing credentials to push and release &quot;{}&quot; snaps &#39;</span>
+        <span class="s1">&#39;to edge channel in series {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">snap_name</span><span class="p">,</span> <span class="n">series</span><span class="p">))</span>
+
+    <span class="n">packages</span> <span class="o">=</span> <span class="p">[{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">snap_name</span><span class="p">,</span> <span class="s1">&#39;series&#39;</span><span class="p">:</span> <span class="n">series</span><span class="p">}]</span>
+    <span class="n">channels</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;edge&#39;</span><span class="p">]</span>
+    <span class="n">_acquire_and_encrypt_credentials</span><span class="p">(</span><span class="n">packages</span><span class="p">,</span> <span class="n">channels</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+        <span class="s1">&#39;Done. Please commit the changes to `{}` file.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">ENCRYPTED_CONFIG_FILENAME</span><span class="p">))</span></div>
+
+
+<span class="nd">@requires_travis_preconditions</span><span class="p">()</span>
+<div class="viewcode-block" id="enable"><a class="viewcode-back" href="../../../snapcraft.integrations.html#snapcraft.integrations.travis.enable">[docs]</a><span class="k">def</span> <span class="nf">enable</span><span class="p">():</span>
+    <span class="n">series</span> <span class="o">=</span> <span class="n">storeapi</span><span class="o">.</span><span class="n">constants</span><span class="o">.</span><span class="n">DEFAULT_SERIES</span>
+    <span class="n">project_config</span> <span class="o">=</span> <span class="n">load_config</span><span class="p">()</span>
+    <span class="n">snap_name</span> <span class="o">=</span> <span class="n">project_config</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+        <span class="s1">&#39;Enabling Travis testbeds to push and release {!r} snaps &#39;</span>
+        <span class="s1">&#39;to edge channel in series {!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">snap_name</span><span class="p">,</span> <span class="n">series</span><span class="p">))</span>
+
+    <span class="n">packages</span> <span class="o">=</span> <span class="p">[{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">snap_name</span><span class="p">,</span> <span class="s1">&#39;series&#39;</span><span class="p">:</span> <span class="n">series</span><span class="p">}]</span>
+    <span class="n">channels</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;edge&#39;</span><span class="p">]</span>
+    <span class="n">_acquire_and_encrypt_credentials</span><span class="p">(</span><span class="n">packages</span><span class="p">,</span> <span class="n">channels</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+        <span class="s1">&#39;Configuring &quot;deploy&quot; phase to build and release the snap in the &#39;</span>
+        <span class="s1">&#39;Store.&#39;</span><span class="p">)</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">TRAVIS_CONFIG_FILENAME</span><span class="p">,</span> <span class="s1">&#39;r+&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fd</span><span class="p">:</span>
+        <span class="n">travis_conf</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fd</span><span class="p">)</span>
+        <span class="c1"># Enable &#39;sudo&#39; capability and &#39;docker&#39; service.</span>
+        <span class="n">travis_conf</span><span class="p">[</span><span class="s1">&#39;sudo&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;required&#39;</span>
+        <span class="n">services</span> <span class="o">=</span> <span class="n">travis_conf</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">&#39;services&#39;</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="k">if</span> <span class="s1">&#39;docker&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">services</span><span class="p">:</span>
+            <span class="n">services</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;docker&#39;</span><span class="p">)</span>
+        <span class="c1"># Add a &#39;deploy&#39; section with &#39;script&#39; provider for building and</span>
+        <span class="c1"># release the snap within a xenial docker container.</span>
+        <span class="n">travis_conf</span><span class="p">[</span><span class="s1">&#39;deploy&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;skip_cleanup&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+            <span class="s1">&#39;provider&#39;</span><span class="p">:</span> <span class="s1">&#39;script&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;script&#39;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="s1">&#39;docker run -v $(pwd):$(pwd) -t ubuntu:xenial sh -c &#39;</span>
+                <span class="s1">&#39;&quot;apt update -qq &amp;&amp; apt install snapcraft -y &amp;&amp; cd $(pwd) &amp;&amp; &#39;</span>
+                <span class="s1">&#39;snapcraft &amp;&amp; snapcraft push *.snap --release edge&quot;&#39;</span><span class="p">),</span>
+            <span class="s1">&#39;on&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;branch&#39;</span><span class="p">:</span> <span class="s1">&#39;master&#39;</span><span class="p">,</span>
+            <span class="p">},</span>
+        <span class="p">}</span>
+        <span class="n">fd</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">yaml</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">travis_conf</span><span class="p">,</span> <span class="n">fd</span><span class="p">,</span> <span class="n">default_flow_style</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+        <span class="s1">&#39;Done. Now you just have to review and commit changes in your &#39;</span>
+        <span class="s1">&#39;Travis project (`{}`).</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="s1">&#39;Also make sure you add the new `{}` file.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">TRAVIS_CONFIG_FILENAME</span><span class="p">,</span> <span class="n">ENCRYPTED_CONFIG_FILENAME</span><span class="p">))</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  <li><a href="../../snapcraft.html">snapcraft</a><ul>
+  <li><a href="../integrations.html">snapcraft.integrations</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

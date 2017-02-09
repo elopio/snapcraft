@@ -1,0 +1,457 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.main &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../index.html" />
+    <link rel="up" title="snapcraft" href="../snapcraft.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.main</h1><div class="highlight"><pre>
+<span class="ch">#!/usr/bin/python3</span>
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2015-2016 Canonical Ltd</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">snapcraft</span>
+
+<span class="sd">Usage:</span>
+<span class="sd">  snapcraft [options] [--enable-geoip --no-parallel-build]</span>
+<span class="sd">  snapcraft [options] init</span>
+<span class="sd">  snapcraft [options] pull [&lt;part&gt; ...]  [--enable-geoip]</span>
+<span class="sd">  snapcraft [options] build [&lt;part&gt; ...] [--no-parallel-build]</span>
+<span class="sd">  snapcraft [options] stage [&lt;part&gt; ...]</span>
+<span class="sd">  snapcraft [options] prime [&lt;part&gt; ...]</span>
+<span class="sd">  snapcraft [options] strip [&lt;part&gt; ...]</span>
+<span class="sd">  snapcraft [options] clean [&lt;part&gt; ...] [--step &lt;step&gt;]</span>
+<span class="sd">  snapcraft [options] snap [&lt;directory&gt; --output &lt;snap-file&gt;]</span>
+<span class="sd">  snapcraft [options] cleanbuild [--remote=&lt;remote&gt;]</span>
+<span class="sd">  snapcraft [options] login</span>
+<span class="sd">  snapcraft [options] logout</span>
+<span class="sd">  snapcraft [options] list-registered</span>
+<span class="sd">  snapcraft [options] registered</span>
+<span class="sd">  snapcraft [options] list-keys</span>
+<span class="sd">  snapcraft [options] keys</span>
+<span class="sd">  snapcraft [options] create-key [&lt;key-name&gt;]</span>
+<span class="sd">  snapcraft [options] register-key [&lt;key-name&gt;]</span>
+<span class="sd">  snapcraft [options] register &lt;snap-name&gt; [--private]</span>
+<span class="sd">  snapcraft [options] sign-build &lt;snap-file&gt; [--key-name=&lt;key-name&gt;] [--local]</span>
+<span class="sd">  snapcraft [options] upload &lt;snap-file&gt;</span>
+<span class="sd">  snapcraft [options] push &lt;snap-file&gt; [--release &lt;channels&gt;]</span>
+<span class="sd">  snapcraft [options] release &lt;snap-name&gt; &lt;revision&gt; &lt;channel&gt;</span>
+<span class="sd">  snapcraft [options] status &lt;snap-name&gt; [--series=&lt;series&gt;] [--arch=&lt;arch&gt;]</span>
+<span class="sd">  snapcraft [options] history &lt;snap-name&gt; [--series=&lt;series&gt;] [--arch=&lt;arch&gt;]</span>
+<span class="sd">  snapcraft [options] close &lt;snap-name&gt; &lt;channel_names&gt;...</span>
+<span class="sd">  snapcraft [options] list-plugins</span>
+<span class="sd">  snapcraft [options] plugins</span>
+<span class="sd">  snapcraft [options] tour [&lt;directory&gt;]</span>
+<span class="sd">  snapcraft [options] update</span>
+<span class="sd">  snapcraft [options] gated &lt;snap-name&gt;</span>
+<span class="sd">  snapcraft [options] validate &lt;snap-name&gt; &lt;validation&gt;... [--key-name=&lt;key-name&gt;]</span>
+<span class="sd">  snapcraft [options] define &lt;part-name&gt;</span>
+<span class="sd">  snapcraft [options] search [&lt;query&gt; ...]</span>
+<span class="sd">  snapcraft [options] enable-ci [&lt;ci-system&gt;] [--refresh]</span>
+<span class="sd">  snapcraft [options] help (topics | &lt;plugin&gt; | &lt;topic&gt;) [--devel]</span>
+<span class="sd">  snapcraft (-h | --help)</span>
+<span class="sd">  snapcraft --version</span>
+
+<span class="sd">Options:</span>
+<span class="sd">  -h --help                             show this help message and exit</span>
+<span class="sd">  -v --version                          show program version and exit</span>
+<span class="sd">  -d --debug                            print debug information while executing</span>
+<span class="sd">                                        (including backtraces). When used with</span>
+<span class="sd">                                        cleanbuild, it opens a shell in case</span>
+<span class="sd">                                        of failure.</span>
+<span class="sd">  --target-arch ARCH                    EXPERIMENTAL: sets the target</span>
+<span class="sd">                                        architecture. Very few plugins support</span>
+<span class="sd">                                        this.</span>
+
+<span class="sd">Options specific to cleanbuild:</span>
+<span class="sd">  --remote &lt;remote&gt; Use a specific lxd remote to run the cleanbuild on.</span>
+<span class="sd">                    This requires prior setup which is described on:</span>
+<span class="sd">                    https://linuxcontainers.org/lxd/getting-started-cli/#multiple-hosts</span>
+
+<span class="sd">Options specific to pulling:</span>
+<span class="sd">  --enable-geoip         enables geoip for the pull step if stage-packages</span>
+<span class="sd">                         are used.</span>
+
+<span class="sd">Options specific to building:</span>
+<span class="sd">  --no-parallel-build                   use only a single build job per part</span>
+<span class="sd">                                        (the default number of jobs per part is</span>
+<span class="sd">                                        equal to the number of CPUs)</span>
+
+<span class="sd">Options specific to cleaning:</span>
+<span class="sd">  -s &lt;step&gt;, --step &lt;step&gt;              only clean the specified step and those</span>
+<span class="sd">                                        that depend upon it. &lt;step&gt; can be one</span>
+<span class="sd">                                        of: pull, build, stage or prime.</span>
+
+<span class="sd">Options specific to snapping:</span>
+<span class="sd">  -o &lt;snap-file&gt;, --output &lt;snap-file&gt;  used in case you want to rename the</span>
+<span class="sd">                                        snap.</span>
+
+<span class="sd">Options specific to store interaction:</span>
+<span class="sd">  --release &lt;channels&gt;  Comma separated list of channels to release to.</span>
+<span class="sd">  --series &lt;series&gt;     Snap series [default: {DEFAULT_SERIES}].</span>
+
+<span class="sd">The available commands are:</span>
+<span class="sd">  help         Obtain help for a certain plugin or topic</span>
+<span class="sd">  init         Initialize a snapcraft project.</span>
+<span class="sd">  list-plugins List the available plugins that handle different types of part.</span>
+<span class="sd">  plugins      Alias for list-plugins.</span>
+<span class="sd">  login        Authenticate session against Ubuntu One SSO.</span>
+<span class="sd">  logout       Clear session credentials.</span>
+<span class="sd">  list-registered List snap names registered or shared with you.</span>
+<span class="sd">  registered   Alias for list-registered.</span>
+<span class="sd">  list-keys    List keys available for signing snaps.</span>
+<span class="sd">  keys         Alias for list-keys.</span>
+<span class="sd">  create-key   Create a key pair for signing snaps.</span>
+<span class="sd">  register-key Register a key for signing snaps.</span>
+<span class="sd">  register     Register the package name in the store.</span>
+<span class="sd">  tour         Setup the snapcraft examples tour in the specified directory,</span>
+<span class="sd">               or ./snapcraft-tour/.</span>
+<span class="sd">  sign-build   Sign a built snap file and assert it using the developer&#39;s key.</span>
+<span class="sd">  push         Pushes and optionally releases a snap to the Ubuntu Store.</span>
+<span class="sd">  upload       DEPRECATED Upload a snap to the Ubuntu Store. The push command</span>
+<span class="sd">               supersedes this command.</span>
+<span class="sd">  release      Release a revision of a snap to a specific channel.</span>
+<span class="sd">  status       Show the current status of a snap per channel and architecture.</span>
+<span class="sd">  history      List all revisions of a snap.</span>
+<span class="sd">  close        Close one or more channels of a snap.</span>
+<span class="sd">  enable-ci    EXPERIMENTAL enable continuous-integration systems to build and</span>
+<span class="sd">               release snaps to the Ubuntu Store.</span>
+
+<span class="sd">The available lifecycle commands are:</span>
+<span class="sd">  clean        Remove content - cleans downloads, builds or install artifacts.</span>
+<span class="sd">  cleanbuild   Create a snap using a clean environment managed by lxd.</span>
+<span class="sd">  pull         Download or retrieve artifacts defined for a part.</span>
+<span class="sd">  build        Build artifacts defined for a part. Build systems capable of</span>
+<span class="sd">               running parallel build jobs will do so unless</span>
+<span class="sd">               &quot;--no-parallel-build&quot; is specified.</span>
+<span class="sd">  stage        Stage the part&#39;s built artifacts into the common staging area.</span>
+<span class="sd">  prime        Final copy and preparation for the snap.</span>
+<span class="sd">  snap         Create a snap.</span>
+
+<span class="sd">Parts ecosystem commands:</span>
+<span class="sd">  update       Updates the parts listing from the cloud.</span>
+<span class="sd">  define       Shows the definition for the cloud part.</span>
+<span class="sd">  search       Searches the remote parts cache for matching parts.</span>
+
+<span class="sd">Calling snapcraft without a COMMAND will default to &#39;snap&#39;</span>
+
+<span class="sd">The cleanbuild command requires a properly setup lxd environment that</span>
+<span class="sd">can connect to external networks. Refer to the &quot;Ubuntu Desktop and</span>
+<span class="sd">Ubuntu Server&quot; section on</span>
+<span class="sd">https://linuxcontainers.org/lxd/getting-started-cli</span>
+<span class="sd">to get started.</span>
+
+<span class="sd">For more help, visit the documentation:</span>
+<span class="sd">http://snapcraft.io/docs/build-snaps</span>
+<span class="sd">&quot;&quot;&quot;</span>  <span class="c1"># NOQA</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">pkgutil</span>
+<span class="kn">import</span> <span class="nn">shutil</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="kn">from</span> <span class="nn">docopt</span> <span class="kn">import</span> <span class="n">docopt</span>
+
+<span class="kn">import</span> <span class="nn">snapcraft</span>
+<span class="kn">from</span> <span class="nn">snapcraft.integrations</span> <span class="kn">import</span> <span class="n">enable_ci</span>
+<span class="kn">from</span> <span class="nn">snapcraft.internal</span> <span class="kn">import</span> <span class="n">lifecycle</span><span class="p">,</span> <span class="n">log</span><span class="p">,</span> <span class="n">parts</span>
+<span class="kn">from</span> <span class="nn">snapcraft.internal.common</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">format_output_in_columns</span><span class="p">,</span>
+    <span class="n">get_terminal_width</span><span class="p">,</span>
+    <span class="n">get_tourdir</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">snapcraft.storeapi.constants</span> <span class="kn">import</span> <span class="n">DEFAULT_SERIES</span>
+
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+<span class="n">_SNAPCRAFT_TOUR_DIR</span> <span class="o">=</span> <span class="s2">&quot;./snapcraft-tour/&quot;</span>
+
+
+<span class="k">def</span> <span class="nf">_scaffold_examples</span><span class="p">(</span><span class="n">directory</span><span class="p">):</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Copying examples tour to {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">directory</span><span class="p">))</span>
+    <span class="n">dest_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">directory</span><span class="p">)</span>
+
+    <span class="c1"># If dest_dir doesn&#39;t exist, we dump all examples in it.</span>
+    <span class="c1"># If it does exist, we dump them into a subdirectory if it&#39;s not</span>
+    <span class="c1"># the default dir.</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span><span class="n">get_tourdir</span><span class="p">(),</span> <span class="n">dest_dir</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">FileExistsError</span><span class="p">:</span>
+        <span class="c1"># default crafted directory shouldn&#39;t add itself inside</span>
+        <span class="k">if</span> <span class="n">directory</span> <span class="o">==</span> <span class="n">_SNAPCRAFT_TOUR_DIR</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">FileExistsError</span><span class="p">(</span><span class="s2">&quot;{} already exists, please specify a &quot;</span>
+                                  <span class="s2">&quot;destination directory.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">directory</span><span class="p">))</span>
+        <span class="c1"># don&#39;t event try to copy if the dest exists already</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">dest_dir</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">NotADirectoryError</span><span class="p">(</span><span class="s2">&quot;{} is a file, can&#39;t be used as a &quot;</span>
+                                     <span class="s2">&quot;destination&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">dest_dir</span><span class="p">))</span>
+        <span class="n">dest_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">normpath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dest_dir</span><span class="p">,</span>
+                                                 <span class="n">_SNAPCRAFT_TOUR_DIR</span><span class="p">))</span>
+        <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span><span class="n">get_tourdir</span><span class="p">(),</span> <span class="n">dest_dir</span><span class="p">)</span>
+
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Snapcraft tour initialized in {}</span><span class="se">\n</span><span class="s2">&quot;</span>
+          <span class="s2">&quot;Instructions are in the README, or &quot;</span>
+          <span class="s2">&quot;http://snapcraft.io/create/#tour&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">directory</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">_list_plugins</span><span class="p">():</span>
+    <span class="n">plugins</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">importer</span><span class="p">,</span> <span class="n">modname</span><span class="p">,</span> <span class="n">is_package</span> <span class="ow">in</span> <span class="n">pkgutil</span><span class="o">.</span><span class="n">iter_modules</span><span class="p">(</span>
+            <span class="n">snapcraft</span><span class="o">.</span><span class="n">plugins</span><span class="o">.</span><span class="n">__path__</span><span class="p">):</span>
+        <span class="n">plugins</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">modname</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">,</span> <span class="s1">&#39;-&#39;</span><span class="p">))</span>
+
+    <span class="c1"># we wrap the output depending on terminal size</span>
+    <span class="n">width</span> <span class="o">=</span> <span class="n">get_terminal_width</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">format_output_in_columns</span><span class="p">(</span><span class="n">plugins</span><span class="p">,</span> <span class="n">max_width</span><span class="o">=</span><span class="n">width</span><span class="p">):</span>
+        <span class="k">print</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_get_project_options</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+    <span class="n">options</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">options</span><span class="p">[</span><span class="s1">&#39;use_geoip&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--enable-geoip&#39;</span><span class="p">]</span>
+    <span class="n">options</span><span class="p">[</span><span class="s1">&#39;parallel_builds&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--no-parallel-build&#39;</span><span class="p">]</span>
+    <span class="n">options</span><span class="p">[</span><span class="s1">&#39;target_deb_arch&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--target-arch&#39;</span><span class="p">]</span>
+    <span class="n">options</span><span class="p">[</span><span class="s1">&#39;debug&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--debug&#39;</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">snapcraft</span><span class="o">.</span><span class="n">ProjectOptions</span><span class="p">(</span><span class="o">**</span><span class="n">options</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="main"><a class="viewcode-back" href="../../snapcraft.html#snapcraft.main.main">[docs]</a><span class="k">def</span> <span class="nf">main</span><span class="p">(</span><span class="n">argv</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="n">doc</span> <span class="o">=</span> <span class="n">__doc__</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">DEFAULT_SERIES</span><span class="o">=</span><span class="n">DEFAULT_SERIES</span><span class="p">)</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">docopt</span><span class="p">(</span><span class="n">doc</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">snapcraft</span><span class="o">.</span><span class="n">__version__</span><span class="p">,</span> <span class="n">argv</span><span class="o">=</span><span class="n">argv</span><span class="p">)</span>
+
+    <span class="c1"># Default log level is INFO unless --debug is specified</span>
+    <span class="n">log_level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span>
+    <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--debug&#39;</span><span class="p">]:</span>
+        <span class="n">log_level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span>
+
+    <span class="n">log</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">log_level</span><span class="o">=</span><span class="n">log_level</span><span class="p">)</span>
+    <span class="n">project_options</span> <span class="o">=</span> <span class="n">_get_project_options</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Starting snapcraft {} from {}.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">snapcraft</span><span class="o">.</span><span class="n">__version__</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">__file__</span><span class="p">)))</span>
+
+    <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;strip&#39;</span><span class="p">]:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;DEPRECATED: use &#39;prime&#39; instead of &#39;strip&#39;&quot;</span><span class="p">)</span>
+        <span class="n">args</span><span class="p">[</span><span class="s1">&#39;prime&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">True</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">run</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">project_options</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--debug&#39;</span><span class="p">]:</span>
+            <span class="k">raise</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">_get_lifecycle_command</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+    <span class="n">lifecycle_commands</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;pull&#39;</span><span class="p">,</span> <span class="s1">&#39;build&#39;</span><span class="p">,</span> <span class="s1">&#39;stage&#39;</span><span class="p">,</span> <span class="s1">&#39;prime&#39;</span><span class="p">]</span>
+    <span class="n">lifecycle_command</span> <span class="o">=</span> <span class="p">[</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">lifecycle_commands</span> <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="n">k</span><span class="p">]]</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">lifecycle_command</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">None</span>
+    <span class="k">return</span> <span class="n">lifecycle_command</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">_get_command_from_arg</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+    <span class="n">functions</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;init&#39;</span><span class="p">:</span> <span class="n">lifecycle</span><span class="o">.</span><span class="n">init</span><span class="p">,</span>
+        <span class="s1">&#39;login&#39;</span><span class="p">:</span> <span class="n">snapcraft</span><span class="o">.</span><span class="n">login</span><span class="p">,</span>
+        <span class="s1">&#39;logout&#39;</span><span class="p">:</span> <span class="n">snapcraft</span><span class="o">.</span><span class="n">logout</span><span class="p">,</span>
+        <span class="s1">&#39;list-plugins&#39;</span><span class="p">:</span> <span class="n">_list_plugins</span><span class="p">,</span>
+        <span class="s1">&#39;plugins&#39;</span><span class="p">:</span> <span class="n">_list_plugins</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="n">function</span> <span class="o">=</span> <span class="p">[</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">functions</span> <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="n">k</span><span class="p">]]</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">function</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">None</span>
+    <span class="k">return</span> <span class="n">functions</span><span class="p">[</span><span class="n">function</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+
+
+<div class="viewcode-block" id="run"><a class="viewcode-back" href="../../snapcraft.html#snapcraft.main.run">[docs]</a><span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">project_options</span><span class="p">):</span>  <span class="c1"># noqa</span>
+    <span class="n">lifecycle_command</span> <span class="o">=</span> <span class="n">_get_lifecycle_command</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+    <span class="n">argless_command</span> <span class="o">=</span> <span class="n">_get_command_from_arg</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">lifecycle_command</span><span class="p">:</span>
+        <span class="n">lifecycle</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+            <span class="n">lifecycle_command</span><span class="p">,</span> <span class="n">project_options</span><span class="p">,</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;part&gt;&#39;</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">argless_command</span><span class="p">:</span>
+        <span class="n">argless_command</span><span class="p">()</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;clean&#39;</span><span class="p">]:</span>
+        <span class="n">_run_clean</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">project_options</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;cleanbuild&#39;</span><span class="p">]:</span>
+        <span class="n">lifecycle</span><span class="o">.</span><span class="n">cleanbuild</span><span class="p">(</span><span class="n">project_options</span><span class="p">,</span> <span class="n">remote</span><span class="o">=</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;--remote&#39;</span><span class="p">]),</span>
+    <span class="k">elif</span> <span class="n">_is_store_command</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+        <span class="n">_run_store_command</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;tour&#39;</span><span class="p">]:</span>
+        <span class="n">_scaffold_examples</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;directory&gt;&#39;</span><span class="p">]</span> <span class="ow">or</span> <span class="n">_SNAPCRAFT_TOUR_DIR</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;help&#39;</span><span class="p">]:</span>
+        <span class="n">snapcraft</span><span class="o">.</span><span class="n">topic_help</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;topic&gt;&#39;</span><span class="p">]</span> <span class="ow">or</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;plugin&gt;&#39;</span><span class="p">],</span>
+                             <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--devel&#39;</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;topics&#39;</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;enable-ci&#39;</span><span class="p">]:</span>
+        <span class="n">enable_ci</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;ci-system&gt;&#39;</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--refresh&#39;</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;update&#39;</span><span class="p">]:</span>
+        <span class="n">parts</span><span class="o">.</span><span class="n">update</span><span class="p">()</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;define&#39;</span><span class="p">]:</span>
+        <span class="n">parts</span><span class="o">.</span><span class="n">define</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;part-name&gt;&#39;</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;search&#39;</span><span class="p">]:</span>
+        <span class="n">parts</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;query&gt;&#39;</span><span class="p">]))</span>
+    <span class="k">else</span><span class="p">:</span>  <span class="c1"># snap by default:</span>
+        <span class="n">lifecycle</span><span class="o">.</span><span class="n">snap</span><span class="p">(</span><span class="n">project_options</span><span class="p">,</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;directory&gt;&#39;</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--output&#39;</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">project_options</span></div>
+
+
+<span class="k">def</span> <span class="nf">_run_clean</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">project_options</span><span class="p">):</span>
+    <span class="n">step</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--step&#39;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">step</span> <span class="o">==</span> <span class="s1">&#39;strip&#39;</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;DEPRECATED: Use `prime` instead of `strip` &#39;</span>
+                       <span class="s1">&#39;as the step to clean&#39;</span><span class="p">)</span>
+        <span class="n">step</span> <span class="o">=</span> <span class="s1">&#39;prime&#39;</span>
+    <span class="n">lifecycle</span><span class="o">.</span><span class="n">clean</span><span class="p">(</span><span class="n">project_options</span><span class="p">,</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;part&gt;&#39;</span><span class="p">],</span> <span class="n">step</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_is_store_command</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+    <span class="n">commands</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;list-registered&#39;</span><span class="p">,</span> <span class="s1">&#39;registered&#39;</span><span class="p">,</span> <span class="s1">&#39;list-keys&#39;</span><span class="p">,</span> <span class="s1">&#39;keys&#39;</span><span class="p">,</span> <span class="s1">&#39;create-key&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;register-key&#39;</span><span class="p">,</span> <span class="s1">&#39;register&#39;</span><span class="p">,</span> <span class="s1">&#39;sign-build&#39;</span><span class="p">,</span> <span class="s1">&#39;upload&#39;</span><span class="p">,</span> <span class="s1">&#39;release&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;push&#39;</span><span class="p">,</span> <span class="s1">&#39;validate&#39;</span><span class="p">,</span> <span class="s1">&#39;gated&#39;</span><span class="p">,</span> <span class="s1">&#39;history&#39;</span><span class="p">,</span> <span class="s1">&#39;status&#39;</span><span class="p">,</span> <span class="s1">&#39;close&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">command</span><span class="p">)</span> <span class="k">for</span> <span class="n">command</span> <span class="ow">in</span> <span class="n">commands</span><span class="p">)</span>
+
+
+<span class="c1"># This function&#39;s complexity is correlated to the number of</span>
+<span class="c1"># commands, no point in checking that.</span>
+<span class="k">def</span> <span class="nf">_run_store_command</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>  <span class="c1"># noqa: C901</span>
+    <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;list-registered&#39;</span><span class="p">]</span> <span class="ow">or</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;registered&#39;</span><span class="p">]:</span>
+        <span class="n">snapcraft</span><span class="o">.</span><span class="n">list_registered</span><span class="p">()</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;list-keys&#39;</span><span class="p">]</span> <span class="ow">or</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;keys&#39;</span><span class="p">]:</span>
+        <span class="n">snapcraft</span><span class="o">.</span><span class="n">list_keys</span><span class="p">()</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;create-key&#39;</span><span class="p">]:</span>
+        <span class="n">snapcraft</span><span class="o">.</span><span class="n">create_key</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;key-name&gt;&#39;</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;register-key&#39;</span><span class="p">]:</span>
+        <span class="n">snapcraft</span><span class="o">.</span><span class="n">register_key</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;key-name&gt;&#39;</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;register&#39;</span><span class="p">]:</span>
+        <span class="n">snapcraft</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;snap-name&gt;&#39;</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--private&#39;</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;sign-build&#39;</span><span class="p">]:</span>
+        <span class="n">snapcraft</span><span class="o">.</span><span class="n">sign_build</span><span class="p">(</span>
+            <span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;snap-file&gt;&#39;</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--key-name&#39;</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--local&#39;</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;upload&#39;</span><span class="p">]:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;DEPRECATED: Use `push` instead of `upload`&#39;</span><span class="p">)</span>
+        <span class="n">snapcraft</span><span class="o">.</span><span class="n">push</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;snap-file&gt;&#39;</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;push&#39;</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--release&#39;</span><span class="p">]:</span>
+            <span class="n">release_channels</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--release&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">release_channels</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">snapcraft</span><span class="o">.</span><span class="n">push</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;snap-file&gt;&#39;</span><span class="p">],</span> <span class="n">release_channels</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;release&#39;</span><span class="p">]:</span>
+        <span class="n">snapcraft</span><span class="o">.</span><span class="n">release</span><span class="p">(</span>
+            <span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;snap-name&gt;&#39;</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;revision&gt;&#39;</span><span class="p">],</span> <span class="p">[</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;channel&gt;&#39;</span><span class="p">]])</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;validate&#39;</span><span class="p">]:</span>
+        <span class="n">snapcraft</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;snap-name&gt;&#39;</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;validation&gt;&#39;</span><span class="p">],</span>
+                           <span class="n">key</span><span class="o">=</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;--key-name&#39;</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;gated&#39;</span><span class="p">]:</span>
+        <span class="n">snapcraft</span><span class="o">.</span><span class="n">gated</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;snap-name&gt;&#39;</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;status&#39;</span><span class="p">]:</span>
+        <span class="n">snapcraft</span><span class="o">.</span><span class="n">status</span><span class="p">(</span>
+            <span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;snap-name&gt;&#39;</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--series&#39;</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--arch&#39;</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;history&#39;</span><span class="p">]:</span>
+        <span class="n">snapcraft</span><span class="o">.</span><span class="n">history</span><span class="p">(</span>
+            <span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;snap-name&gt;&#39;</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--series&#39;</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--arch&#39;</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;close&#39;</span><span class="p">]:</span>
+        <span class="n">snapcraft</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;snap-name&gt;&#39;</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;&lt;channel_names&gt;&#39;</span><span class="p">])</span>
+
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
+    <span class="n">main</span><span class="p">()</span>                  <span class="c1"># pragma: no cover</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  <li><a href="../snapcraft.html">snapcraft</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

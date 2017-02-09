@@ -1,0 +1,241 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.plugins.qbs &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../../index.html" />
+    <link rel="up" title="snapcraft" href="../../snapcraft.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.plugins.qbs</h1><div class="highlight"><pre>
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2017 Dan Chapman &lt;dpniel@ubuntu.com&gt;</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="sd">&quot;&quot;&quot;The QBS plugin is useful for building parts that use the Qt Build Suite.</span>
+
+<span class="sd">These are projects that are built using .qbs files and are using gcc or</span>
+<span class="sd">clang based toolchains.</span>
+
+<span class="sd">This plugin uses the common plugin keywords as well as those for &quot;sources&quot;.</span>
+<span class="sd">For more information check the &#39;plugins&#39; topic for the former and the</span>
+<span class="sd">&#39;sources&#39; topic for the latter.</span>
+
+<span class="sd">Additionally, this plugin uses the following plugin-specific keywords:</span>
+
+<span class="sd">    - qbs-build-variant:</span>
+<span class="sd">      (enum, &#39;debug&#39; or &#39;release&#39;)</span>
+<span class="sd">      Set either debug or release build variant. Default is release.</span>
+<span class="sd">    - qbs-options:</span>
+<span class="sd">      (list of strings)</span>
+<span class="sd">      Additional options to pass to the qbs invocation.</span>
+<span class="sd">    - qbs-profile:</span>
+<span class="sd">      (enum, &#39;gcc&#39; or &#39;clang&#39;)</span>
+<span class="sd">      Set either gcc or clang as the base build profile. Default is gcc.</span>
+<span class="sd">    - qt-version:</span>
+<span class="sd">      (enum, &#39;qt4&#39; or &#39;qt5&#39;)</span>
+<span class="sd">      Optionally you can set up profiles for qt4 and qt5 applications.</span>
+<span class="sd">      If no qt version is set then the base gcc/clang profile will be used.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">shutil</span>
+<span class="kn">import</span> <span class="nn">snapcraft</span>
+
+
+<div class="viewcode-block" id="QbsPlugin"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.qbs.QbsPlugin">[docs]</a><span class="k">class</span> <span class="nc">QbsPlugin</span><span class="p">(</span><span class="n">snapcraft</span><span class="o">.</span><span class="n">BasePlugin</span><span class="p">):</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="QbsPlugin.schema"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.qbs.QbsPlugin.schema">[docs]</a>    <span class="k">def</span> <span class="nf">schema</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">schema</span><span class="p">()</span>
+
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;qbs-build-variant&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;enum&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;debug&#39;</span><span class="p">,</span> <span class="s1">&#39;release&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;release&#39;</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;qbs-options&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;array&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;minitems&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s1">&#39;uniqueItems&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+            <span class="s1">&#39;items&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="p">}</span>
+
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;qbs-profile&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;enum&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;gcc&#39;</span><span class="p">,</span> <span class="s1">&#39;clang&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;gcc&#39;</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;qt-version&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;enum&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;qt4&#39;</span><span class="p">,</span> <span class="s1">&#39;qt5&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="bp">None</span>
+        <span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">schema</span></div>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="QbsPlugin.get_pull_properties"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.qbs.QbsPlugin.get_pull_properties">[docs]</a>    <span class="k">def</span> <span class="nf">get_pull_properties</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="c1"># Inform Snapcraft of the properties associated with pulling. If these</span>
+        <span class="c1"># change in the YAML Snapcraft will consider the pull step dirty.</span>
+        <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;qt-version&#39;</span><span class="p">,</span> <span class="s1">&#39;qbs-profile&#39;</span><span class="p">]</span></div>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="QbsPlugin.get_build_properties"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.qbs.QbsPlugin.get_build_properties">[docs]</a>    <span class="k">def</span> <span class="nf">get_build_properties</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="c1"># Inform Snapcraft of the properties associated with building. If these</span>
+        <span class="c1"># change in the YAML Snapcraft will consider the build step dirty.</span>
+        <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;qbs-options&#39;</span><span class="p">,</span> <span class="s1">&#39;qbs-build-variant&#39;</span><span class="p">]</span></div>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">options</span><span class="p">,</span> <span class="n">project</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">options</span><span class="p">,</span> <span class="n">project</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">build_packages</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s1">&#39;qbs&#39;</span><span class="p">,</span> <span class="s1">&#39;gcc&#39;</span><span class="p">,</span> <span class="s1">&#39;clang&#39;</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">qt_version</span> <span class="o">==</span> <span class="s1">&#39;qt5&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">build_packages</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s1">&#39;qt5-qmake&#39;</span><span class="p">,</span> <span class="s1">&#39;qtbase5-dev&#39;</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">qt_version</span> <span class="o">==</span> <span class="s1">&#39;qt4&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">build_packages</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s1">&#39;qt4-qmake&#39;</span><span class="p">,</span> <span class="s1">&#39;libqt4-dev&#39;</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">qt_version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s1">&#39;Unsupported Qt version: {!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">qt_version</span><span class="p">))</span>
+
+<div class="viewcode-block" id="QbsPlugin.build"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.qbs.QbsPlugin.build">[docs]</a>    <span class="k">def</span> <span class="nf">build</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">build</span><span class="p">()</span>
+
+        <span class="n">env</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_environment</span><span class="p">()</span>
+
+        <span class="c1"># Setup the toolchains, there will only be gcc or clang by default</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s1">&#39;qbs&#39;</span><span class="p">,</span> <span class="s1">&#39;setup-toolchains&#39;</span><span class="p">,</span> <span class="s1">&#39;--detect&#39;</span><span class="p">],</span> <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">)</span>
+
+        <span class="n">build_profile</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">qt_version</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">build_profile</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">qbs_profile</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># a unique&#39;ish name for snap builds. Hopefully this shouldn&#39;t clash</span>
+            <span class="c1"># with any other local profiles. Each profile should look something</span>
+            <span class="c1"># like: profiles.snapcraft-qbs-qt5-clang</span>
+            <span class="n">build_profile</span> <span class="o">=</span> <span class="s1">&#39;snapcraft-qbs-{}-{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">qt_version</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">qbs_profile</span><span class="p">)</span>
+
+            <span class="c1"># Find full qmake path as qbs setup-qt requires it</span>
+            <span class="n">qmake</span> <span class="o">=</span> <span class="n">shutil</span><span class="o">.</span><span class="n">which</span><span class="p">(</span><span class="s1">&#39;qmake&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">qmake</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s1">&#39;The qbs plugin requires qmake be on PATH&#39;</span><span class="p">)</span>
+
+            <span class="c1"># Setup the Qt profile.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s1">&#39;qbs&#39;</span><span class="p">,</span> <span class="s1">&#39;setup-qt&#39;</span><span class="p">,</span> <span class="n">qmake</span><span class="p">,</span> <span class="n">build_profile</span><span class="p">],</span> <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">)</span>
+
+            <span class="c1"># Switch buildprofile to clang if required</span>
+            <span class="c1"># we don&#39;t need to set gcc as that is the default baseProfile</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">qbs_profile</span> <span class="o">==</span> <span class="s1">&#39;clang&#39;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s1">&#39;qbs&#39;</span><span class="p">,</span> <span class="s1">&#39;config&#39;</span><span class="p">,</span>
+                          <span class="s1">&#39;profiles.{}.baseProfile&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">build_profile</span><span class="p">),</span>
+                          <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">qbs_profile</span><span class="p">],</span>
+                         <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">)</span>
+
+        <span class="c1"># Run the build.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s1">&#39;qbs&#39;</span><span class="p">,</span> <span class="s1">&#39;build&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;-d&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">builddir</span><span class="p">,</span>
+                  <span class="s1">&#39;-f&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sourcedir</span><span class="p">,</span>
+                  <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">qbs_build_variant</span><span class="p">,</span>
+                  <span class="s1">&#39;qbs.installRoot:&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span>
+                  <span class="s1">&#39;profile:&#39;</span> <span class="o">+</span> <span class="n">build_profile</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">qbs_options</span><span class="p">,</span>
+                 <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_build_environment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">qt_version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">env</span><span class="p">[</span><span class="s1">&#39;QT_SELECT&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">qt_version</span>
+        <span class="k">return</span> <span class="n">env</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  <li><a href="../../snapcraft.html">snapcraft</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

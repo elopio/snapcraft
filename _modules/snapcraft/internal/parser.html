@@ -1,0 +1,468 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.internal.parser &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../../index.html" />
+    <link rel="up" title="snapcraft" href="../../snapcraft.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.internal.parser</h1><div class="highlight"><pre>
+<span class="ch">#!/usr/bin/python3</span>
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2016 Canonical Ltd</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">snapcraft-parser</span>
+
+<span class="sd">Parse a wiki index of parts and output formatted YAML for use by &#39;snapcraft&#39;.</span>
+<span class="sd">&#39;snapcraft&#39; uses the YAML to find non-local parts referred to by a project&#39;s</span>
+<span class="sd">&#39;snapcraft.yaml&#39; file.  See &#39;snapcraft update&#39; and &#39;snapcraft define&#39; for more</span>
+<span class="sd">details.</span>
+
+
+<span class="sd">Usage:</span>
+<span class="sd">  snapcraft-parser [options]</span>
+
+<span class="sd">Options:</span>
+<span class="sd">  -h --help                             show this help message and exit</span>
+<span class="sd">  -v --version                          show program version and exit</span>
+<span class="sd">  -d --debug                            print debug information while executing</span>
+<span class="sd">                                        (including backtraces)</span>
+<span class="sd">  -i --index=&lt;filepath&gt;                 a file containing a part index.</span>
+<span class="sd">                                        ({default_index!r})</span>
+<span class="sd">  -o --output=&lt;filename&gt;                where to write the parsed parts list.</span>
+<span class="sd">                                        ({default_parts_file!r})</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">urllib</span>
+<span class="kn">import</span> <span class="nn">yaml</span>
+<span class="kn">from</span> <span class="nn">yaml.scanner</span> <span class="kn">import</span> <span class="n">ScannerError</span>
+<span class="kn">from</span> <span class="nn">xdg</span> <span class="kn">import</span> <span class="n">BaseDirectory</span>
+<span class="kn">from</span> <span class="nn">yaml.parser</span> <span class="kn">import</span> <span class="n">ParserError</span>
+
+<span class="kn">from</span> <span class="nn">docopt</span> <span class="kn">import</span> <span class="n">docopt</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">OrderedDict</span>
+
+<span class="kn">import</span> <span class="nn">snapcraft</span>
+<span class="kn">from</span> <span class="nn">snapcraft.internal</span> <span class="kn">import</span> <span class="n">log</span><span class="p">,</span> <span class="n">repo</span><span class="p">,</span> <span class="n">sources</span>
+<span class="kn">from</span> <span class="nn">snapcraft.internal.errors</span> <span class="kn">import</span> <span class="n">SnapcraftError</span><span class="p">,</span> <span class="n">InvalidWikiEntryError</span>
+<span class="kn">from</span> <span class="nn">snapcraft.internal.project_loader</span> <span class="kn">import</span> <span class="n">replace_attr</span>
+
+
+<div class="viewcode-block" id="BadSnapcraftYAMLError"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.parser.BadSnapcraftYAMLError">[docs]</a><span class="k">class</span> <span class="nc">BadSnapcraftYAMLError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="MissingSnapcraftYAMLError"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.parser.MissingSnapcraftYAMLError">[docs]</a><span class="k">class</span> <span class="nc">MissingSnapcraftYAMLError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<span class="c1"># TODO: make this a temporary directory that get&#39;s removed when finished</span>
+<span class="n">BASE_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">BaseDirectory</span><span class="o">.</span><span class="n">xdg_cache_home</span><span class="p">,</span> <span class="s1">&#39;snapcraft-parser&#39;</span><span class="p">)</span>
+<span class="n">PARTS_FILE</span> <span class="o">=</span> <span class="s1">&#39;snap-parts.yaml&#39;</span>
+<span class="n">DEFAULT_INDEX</span> <span class="o">=</span> <span class="s1">&#39;http://wiki.ubuntu.com/snapcraft/parts?action=raw&#39;</span>
+
+<span class="n">__doc__</span> <span class="o">=</span> <span class="n">__doc__</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">default_index</span><span class="o">=</span><span class="n">DEFAULT_INDEX</span><span class="p">,</span>
+                         <span class="n">default_parts_file</span><span class="o">=</span><span class="n">PARTS_FILE</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_get_base_dir</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;The location to which sources are downloaded&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">BASE_DIR</span>
+
+
+<div class="viewcode-block" id="main"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.parser.main">[docs]</a><span class="k">def</span> <span class="nf">main</span><span class="p">(</span><span class="n">argv</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">docopt</span><span class="p">(</span><span class="n">__doc__</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">snapcraft</span><span class="o">.</span><span class="n">__version__</span><span class="p">,</span> <span class="n">argv</span><span class="o">=</span><span class="n">argv</span><span class="p">)</span>
+
+    <span class="c1"># Default log level is INFO unless --debug is specified</span>
+    <span class="n">log_level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span>
+    <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--debug&#39;</span><span class="p">]:</span>
+        <span class="n">log_level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span>
+
+    <span class="n">log</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">log_level</span><span class="o">=</span><span class="n">log_level</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">run</span><span class="p">(</span><span class="n">args</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">_get_origin_data</span><span class="p">(</span><span class="n">origin_dir</span><span class="p">):</span>
+    <span class="n">origin_data</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">snapcraft_yaml_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">origin_dir</span><span class="p">,</span> <span class="s1">&#39;snapcraft.yaml&#39;</span><span class="p">)</span>
+    <span class="n">hidden_snapcraft_yaml_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">origin_dir</span><span class="p">,</span> <span class="s1">&#39;.snapcraft.yaml&#39;</span><span class="p">)</span>
+
+    <span class="c1"># read either &#39;snapcraft.yaml&#39; or &#39;.snapcraft.yaml&#39; but not both</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">snapcraft_yaml_file</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span>
+            <span class="n">hidden_snapcraft_yaml_file</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">MissingSnapcraftYAMLError</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">snapcraft_yaml_file</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">hidden_snapcraft_yaml_file</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">BadSnapcraftYAMLError</span><span class="p">(</span>
+                <span class="s1">&#39;Origin has both &quot;snapcraft.yaml&quot; and &quot;.snapcraft.yaml&quot;&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">yaml_file</span> <span class="o">=</span> <span class="n">snapcraft_yaml_file</span>
+    <span class="k">elif</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">hidden_snapcraft_yaml_file</span><span class="p">):</span>
+        <span class="n">yaml_file</span> <span class="o">=</span> <span class="n">hidden_snapcraft_yaml_file</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">yaml_file</span><span class="p">)</span> <span class="k">as</span> <span class="n">fp</span><span class="p">:</span>
+            <span class="n">origin_data</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fp</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">ScannerError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">InvalidWikiEntryError</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">origin_data</span>
+
+
+<span class="k">def</span> <span class="nf">_is_local</span><span class="p">(</span><span class="n">source</span><span class="p">):</span>
+    <span class="c1"># XXX: Is this sufficient?  Can &quot;:&quot; be part of a local</span>
+    <span class="c1"># directory?</span>
+    <span class="k">return</span> <span class="n">source</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span> <span class="s1">&#39;:&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">source</span>
+
+
+<span class="k">def</span> <span class="nf">_update_source</span><span class="p">(</span><span class="n">part</span><span class="p">,</span> <span class="n">origin</span><span class="p">):</span>
+    <span class="c1"># handle entry_parts with local sources</span>
+    <span class="n">orig_source</span> <span class="o">=</span> <span class="n">part</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;source&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">orig_source</span> <span class="o">==</span> <span class="s2">&quot;.&quot;</span><span class="p">:</span>
+        <span class="n">part</span><span class="p">[</span><span class="s2">&quot;source&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">origin</span>
+    <span class="k">elif</span> <span class="n">_is_local</span><span class="p">(</span><span class="n">orig_source</span><span class="p">):</span>
+        <span class="n">part</span><span class="p">[</span><span class="s2">&quot;source&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">origin</span>
+        <span class="n">part</span><span class="p">[</span><span class="s2">&quot;source-subdir&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">orig_source</span>
+
+    <span class="k">return</span> <span class="n">part</span>
+
+
+<span class="k">def</span> <span class="nf">_process_entry_parts</span><span class="p">(</span><span class="n">entry_parts</span><span class="p">,</span> <span class="n">parts</span><span class="p">,</span> <span class="n">origin</span><span class="p">,</span> <span class="n">maintainer</span><span class="p">,</span> <span class="n">description</span><span class="p">,</span>
+                         <span class="n">origin_name</span><span class="p">,</span> <span class="n">origin_version</span><span class="p">):</span>
+    <span class="n">after_parts</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">parts_list</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">part_name</span> <span class="ow">in</span> <span class="n">entry_parts</span><span class="p">:</span>
+        <span class="k">if</span> <span class="s1">&#39;/&#39;</span> <span class="ow">in</span> <span class="n">part_name</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s1">&#39;DEPRECATED: Found a &quot;/&quot; in the name of the {!r} part&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">part_name</span><span class="p">))</span>
+        <span class="n">source_part</span> <span class="o">=</span> <span class="n">parts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">part_name</span><span class="p">)</span>
+        <span class="n">replacements</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">(</span><span class="s1">&#39;$SNAPCRAFT_PROJECT_NAME&#39;</span><span class="p">,</span> <span class="n">origin_name</span><span class="p">),</span>
+            <span class="p">(</span><span class="s1">&#39;$SNAPCRAFT_PROJECT_VERSION&#39;</span><span class="p">,</span> <span class="n">origin_version</span><span class="p">),</span>
+        <span class="p">]</span>
+
+        <span class="n">source_part</span> <span class="o">=</span> <span class="n">replace_attr</span><span class="p">(</span><span class="n">source_part</span><span class="p">,</span> <span class="n">replacements</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">source_part</span><span class="p">:</span>
+            <span class="n">source_part</span> <span class="o">=</span> <span class="n">_update_source</span><span class="p">(</span><span class="n">source_part</span><span class="p">,</span> <span class="n">origin</span><span class="p">)</span>
+            <span class="n">source_part</span><span class="p">[</span><span class="s1">&#39;maintainer&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">maintainer</span>
+            <span class="n">source_part</span><span class="p">[</span><span class="s1">&#39;description&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">description</span>
+
+            <span class="n">parts_list</span><span class="p">[</span><span class="n">part_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">source_part</span>
+            <span class="n">after</span> <span class="o">=</span> <span class="n">source_part</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;after&quot;</span><span class="p">,</span> <span class="p">[])</span>
+
+            <span class="k">if</span> <span class="n">after</span><span class="p">:</span>
+                <span class="n">after_parts</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">after</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">after_parts</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">part_name</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">parts_list</span><span class="p">,</span> <span class="n">after_parts</span>
+
+
+<span class="k">def</span> <span class="nf">_encode_origin</span><span class="p">(</span><span class="n">origin</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s1">&#39;[^A-Za-z0-9-_.]&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">origin</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_process_entry</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
+    <span class="n">parts_list</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="c1"># Store all the parts listed in &#39;after&#39; for each included part so that</span>
+    <span class="c1"># we can check later that we aren&#39;t missing any parts.</span>
+    <span class="c1"># XXX: What do we do about &#39;after&#39; parts that should be looked for in</span>
+    <span class="c1"># the wiki?  They should be in the master parts list.</span>
+    <span class="n">after_parts</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+    <span class="c1"># Get optional wiki entry fields.</span>
+    <span class="n">origin_type</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;origin-type&#39;</span><span class="p">)</span>
+    <span class="n">origin_branch</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;origin-branch&#39;</span><span class="p">)</span>
+    <span class="n">origin_commit</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;origin-commit&#39;</span><span class="p">)</span>
+    <span class="n">origin_tag</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;origin-tag&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Get required wiki entry fields.</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">entry_parts</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;parts&#39;</span><span class="p">]</span>
+        <span class="n">origin</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;origin&#39;</span><span class="p">]</span>
+        <span class="n">maintainer</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;maintainer&#39;</span><span class="p">]</span>
+        <span class="n">description</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;description&#39;</span><span class="p">]</span>
+    <span class="k">except</span> <span class="ne">KeyError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">InvalidWikiEntryError</span><span class="p">(</span><span class="s1">&#39;Missing key in wiki entry: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Processing origin {origin!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">origin</span><span class="o">=</span><span class="n">origin</span><span class="p">))</span>
+    <span class="n">origin_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">_get_base_dir</span><span class="p">(),</span> <span class="n">_encode_origin</span><span class="p">(</span><span class="n">origin</span><span class="p">))</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">origin_dir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+    <span class="n">source_handler</span> <span class="o">=</span> <span class="n">sources</span><span class="o">.</span><span class="n">get_source_handler</span><span class="p">(</span><span class="n">origin</span><span class="p">,</span>
+                                                <span class="n">source_type</span><span class="o">=</span><span class="n">origin_type</span><span class="p">)</span>
+    <span class="n">handler</span> <span class="o">=</span> <span class="n">source_handler</span><span class="p">(</span><span class="n">origin</span><span class="p">,</span> <span class="n">source_dir</span><span class="o">=</span><span class="n">origin_dir</span><span class="p">)</span>
+    <span class="n">repo</span><span class="o">.</span><span class="n">check_for_command</span><span class="p">(</span><span class="n">handler</span><span class="o">.</span><span class="n">command</span><span class="p">)</span>
+    <span class="n">handler</span><span class="o">.</span><span class="n">source_branch</span> <span class="o">=</span> <span class="n">origin_branch</span>
+    <span class="n">handler</span><span class="o">.</span><span class="n">source_commit</span> <span class="o">=</span> <span class="n">origin_commit</span>
+    <span class="n">handler</span><span class="o">.</span><span class="n">source_tag</span> <span class="o">=</span> <span class="n">origin_tag</span>
+    <span class="n">handler</span><span class="o">.</span><span class="n">pull</span><span class="p">()</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">origin_data</span> <span class="o">=</span> <span class="n">_get_origin_data</span><span class="p">(</span><span class="n">origin_dir</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">MissingSnapcraftYAMLError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">InvalidWikiEntryError</span><span class="p">(</span>
+            <span class="s1">&#39;Origin {origin!r} is missing a snapcraft.yaml file.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">origin</span><span class="o">=</span><span class="n">origin</span><span class="p">))</span>
+    <span class="k">except</span> <span class="n">BadSnapcraftYAMLError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">InvalidWikiEntryError</span><span class="p">(</span><span class="s1">&#39;snapcraft.yaml error: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
+
+    <span class="n">origin_parts</span> <span class="o">=</span> <span class="n">origin_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;parts&#39;</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="n">origin_name</span> <span class="o">=</span> <span class="n">origin_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">)</span>
+    <span class="n">origin_version</span> <span class="o">=</span> <span class="n">origin_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;version&#39;</span><span class="p">)</span>
+
+    <span class="n">entry_parts_list</span><span class="p">,</span> <span class="n">entry_parts_after_list</span> <span class="o">=</span> <span class="n">_process_entry_parts</span><span class="p">(</span>
+        <span class="n">entry_parts</span><span class="p">,</span> <span class="n">origin_parts</span><span class="p">,</span> <span class="n">origin</span><span class="p">,</span> <span class="n">maintainer</span><span class="p">,</span> <span class="n">description</span><span class="p">,</span>
+        <span class="n">origin_name</span><span class="p">,</span> <span class="n">origin_version</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parts_list</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">entry_parts_list</span><span class="p">)</span>
+    <span class="n">after_parts</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">entry_parts_after_list</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">parts_list</span><span class="p">,</span> <span class="n">after_parts</span>
+
+
+<span class="k">def</span> <span class="nf">_process_wiki_entry</span><span class="p">(</span>
+        <span class="n">entry</span><span class="p">,</span> <span class="n">master_parts_list</span><span class="p">,</span> <span class="n">master_missing_parts</span><span class="p">,</span>
+        <span class="n">pending_validation_entries</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Add valid wiki entries to the master parts list&quot;&quot;&quot;</span>
+    <span class="c1"># return the number of errors encountered</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="n">ScannerError</span><span class="p">,</span> <span class="n">ParserError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">InvalidWikiEntryError</span><span class="p">(</span>
+            <span class="s1">&#39;Bad wiki entry, possibly malformed YAML for entry: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">parts</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;parts&#39;</span><span class="p">]</span>
+    <span class="k">except</span> <span class="ne">KeyError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">InvalidWikiEntryError</span><span class="p">(</span>
+            <span class="s1">&#39;&quot;parts&quot; missing from wiki entry: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">entry</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">part_name</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">part_name</span> <span class="ow">and</span> <span class="n">part_name</span> <span class="ow">in</span> <span class="n">master_parts_list</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidWikiEntryError</span><span class="p">(</span>
+                <span class="s1">&#39;Duplicate part found in the wiki: {} in entry {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">part_name</span><span class="p">,</span> <span class="n">entry</span><span class="p">))</span>
+
+    <span class="n">parts_list</span><span class="p">,</span> <span class="n">after_parts</span> <span class="o">=</span> <span class="n">_process_entry</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="n">known_parts</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">parts_list</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">master_parts_list</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="n">missing_parts</span> <span class="o">=</span> <span class="n">missing_parts_set</span><span class="p">(</span><span class="n">after_parts</span><span class="p">,</span> <span class="n">known_parts</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">len</span><span class="p">(</span><span class="n">missing_parts</span><span class="p">):</span>
+        <span class="n">master_parts_list</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">parts_list</span><span class="p">)</span>
+        <span class="n">master_missing_parts</span> <span class="o">-=</span> <span class="nb">set</span><span class="p">(</span><span class="n">parts_list</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">pending_validation_entries</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span>
+        <span class="n">master_missing_parts</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">missing_parts</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Parts {!r} are missing&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">missing_parts</span><span class="p">)))</span>
+
+
+<span class="k">def</span> <span class="nf">_try_process_entry</span><span class="p">(</span>
+        <span class="n">entry</span><span class="p">,</span> <span class="n">master_parts_list</span><span class="p">,</span> <span class="n">missing_parts</span><span class="p">,</span>
+        <span class="n">pending_validation_entries</span><span class="p">):</span>
+    <span class="n">wiki_errors</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">_process_wiki_entry</span><span class="p">(</span>
+            <span class="n">entry</span><span class="p">,</span> <span class="n">master_parts_list</span><span class="p">,</span> <span class="n">missing_parts</span><span class="p">,</span>
+            <span class="n">pending_validation_entries</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">SnapcraftError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+        <span class="n">wiki_errors</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="k">return</span> <span class="n">wiki_errors</span>
+
+
+<span class="k">def</span> <span class="nf">_process_index</span><span class="p">(</span><span class="n">output</span><span class="p">):</span>
+    <span class="c1"># XXX: This can&#39;t remain in memory if the list gets very large, but it</span>
+    <span class="c1"># should be okay for now.</span>
+    <span class="n">master_parts_list</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="n">pending_validation_entries</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">missing_parts</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+    <span class="n">wiki_errors</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="n">output</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">b</span><span class="s1">&#39;{{{&#39;</span><span class="p">,</span> <span class="n">b</span><span class="s1">&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">b</span><span class="s1">&#39;}}}&#39;</span><span class="p">,</span> <span class="n">b</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+    <span class="n">output</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+
+    <span class="c1"># split the wiki into an array of entries to allow the parser to</span>
+    <span class="c1"># proceed when invalid yaml is found.</span>
+    <span class="n">entry</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+    <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">output</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="o">.</span><span class="n">splitlines</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">line</span> <span class="o">==</span> <span class="s1">&#39;---&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">entry</span><span class="p">:</span>
+                <span class="n">wiki_errors</span> <span class="o">+=</span> <span class="n">_try_process_entry</span><span class="p">(</span>
+                    <span class="n">entry</span><span class="p">,</span> <span class="n">master_parts_list</span><span class="p">,</span> <span class="n">missing_parts</span><span class="p">,</span>
+                    <span class="n">pending_validation_entries</span><span class="p">)</span>
+                <span class="n">entry</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">entry</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">entry</span><span class="p">,</span> <span class="n">line</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">entry</span><span class="p">:</span>
+        <span class="n">wiki_errors</span> <span class="o">+=</span> <span class="n">_try_process_entry</span><span class="p">(</span>
+            <span class="n">entry</span><span class="p">,</span> <span class="n">master_parts_list</span><span class="p">,</span>  <span class="n">missing_parts</span><span class="p">,</span>
+            <span class="n">pending_validation_entries</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">pending_validation_entries</span><span class="p">:</span>
+        <span class="n">wiki_errors</span> <span class="o">+=</span> <span class="n">_try_process_entry</span><span class="p">(</span>
+            <span class="n">entry</span><span class="p">,</span> <span class="n">master_parts_list</span><span class="p">,</span> <span class="n">missing_parts</span><span class="p">,</span> <span class="p">[])</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">missing_parts</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;Parts {!r} are not defined in the parts entry&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">missing_parts</span><span class="p">)))</span>
+        <span class="n">wiki_errors</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;master_parts_list&#39;</span><span class="p">:</span> <span class="n">master_parts_list</span><span class="p">,</span>
+            <span class="s1">&#39;wiki_errors&#39;</span><span class="p">:</span> <span class="n">wiki_errors</span><span class="p">}</span>
+
+
+<div class="viewcode-block" id="run"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.parser.run">[docs]</a><span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;--output&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">path</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">PARTS_FILE</span>
+
+    <span class="n">index</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;--index&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">index</span><span class="p">:</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="n">DEFAULT_INDEX</span>
+    <span class="k">if</span> <span class="s1">&#39;://&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">index</span><span class="p">:</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="s1">&#39;{}{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="s1">&#39;file://&#39;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">(),</span> <span class="n">index</span><span class="p">))</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="n">urllib</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">urlopen</span><span class="p">(</span><span class="n">index</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+    <span class="k">except</span> <span class="n">urllib</span><span class="o">.</span><span class="n">error</span><span class="o">.</span><span class="n">URLError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">&#39;Unable to access index: {!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
+        <span class="k">return</span> <span class="mi">1</span>
+
+    <span class="n">data</span> <span class="o">=</span> <span class="n">_process_index</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+    <span class="n">master_parts_list</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;master_parts_list&#39;</span><span class="p">]</span>
+    <span class="n">wiki_errors</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;wiki_errors&#39;</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">wiki_errors</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;{} wiki errors found!&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">wiki_errors</span><span class="p">))</span>
+
+    <span class="n">_write_parts_list</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">master_parts_list</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;--debug&#39;</span><span class="p">]:</span>
+        <span class="k">print</span><span class="p">(</span><span class="n">yaml</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">master_parts_list</span><span class="p">,</span> <span class="n">default_flow_style</span><span class="o">=</span><span class="bp">False</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">wiki_errors</span></div>
+
+
+<div class="viewcode-block" id="missing_parts_set"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.parser.missing_parts_set">[docs]</a><span class="k">def</span> <span class="nf">missing_parts_set</span><span class="p">(</span><span class="n">parts</span><span class="p">,</span> <span class="n">known_parts</span><span class="p">):</span>
+    <span class="n">missing_parts</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">partname</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">partname</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">known_parts</span><span class="p">:</span>
+            <span class="n">missing_parts</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">partname</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">missing_parts</span></div>
+
+
+<span class="k">def</span> <span class="nf">_write_parts_list</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">master_parts_list</span><span class="p">):</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Writing parts list to {!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">path</span><span class="p">))</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fp</span><span class="p">:</span>
+        <span class="n">fp</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">yaml</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">master_parts_list</span><span class="p">,</span>
+                 <span class="n">default_flow_style</span><span class="o">=</span><span class="bp">False</span><span class="p">))</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  <li><a href="../../snapcraft.html">snapcraft</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

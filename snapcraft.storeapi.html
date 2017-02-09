@@ -1,0 +1,635 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.storeapi package &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="index.html" />
+    <link rel="up" title="snapcraft package" href="snapcraft.html" />
+    <link rel="prev" title="snapcraft.plugins package" href="snapcraft.plugins.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="snapcraft-storeapi-package">
+<h1>snapcraft.storeapi package<a class="headerlink" href="#snapcraft-storeapi-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-snapcraft.storeapi.compat">
+<span id="snapcraft-storeapi-compat-module"></span><h2>snapcraft.storeapi.compat module<a class="headerlink" href="#module-snapcraft.storeapi.compat" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-snapcraft.storeapi.constants">
+<span id="snapcraft-storeapi-constants-module"></span><h2>snapcraft.storeapi.constants module<a class="headerlink" href="#module-snapcraft.storeapi.constants" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-snapcraft.storeapi.errors">
+<span id="snapcraft-storeapi-errors-module"></span><h2>snapcraft.storeapi.errors module<a class="headerlink" href="#module-snapcraft.storeapi.errors" title="Permalink to this headline">¶</a></h2>
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.DeveloperAgreementSignError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">DeveloperAgreementSignError</code><span class="sig-paren">(</span><em>response</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#DeveloperAgreementSignError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.DeveloperAgreementSignError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.errors.StoreError" title="snapcraft.storeapi.errors.StoreError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.errors.StoreError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.storeapi.errors.DeveloperAgreementSignError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'There was an error while signing developer agreement.\nReason: {reason!r}\nText: {text!r}'</em><a class="headerlink" href="#snapcraft.storeapi.errors.DeveloperAgreementSignError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.InvalidCredentialsError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">InvalidCredentialsError</code><span class="sig-paren">(</span><em>message</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#InvalidCredentialsError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.InvalidCredentialsError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="snapcraft.internal.html#snapcraft.internal.errors.SnapcraftError" title="snapcraft.internal.errors.SnapcraftError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.internal.errors.SnapcraftError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.storeapi.errors.InvalidCredentialsError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Invalid credentials: {message}.'</em><a class="headerlink" href="#snapcraft.storeapi.errors.InvalidCredentialsError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.NeedTermsSignedError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">NeedTermsSignedError</code><span class="sig-paren">(</span><em>message</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#NeedTermsSignedError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.NeedTermsSignedError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.errors.StoreError" title="snapcraft.storeapi.errors.StoreError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.errors.StoreError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.storeapi.errors.NeedTermsSignedError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Developer Terms of Service agreement must be signed before continuing: {message}'</em><a class="headerlink" href="#snapcraft.storeapi.errors.NeedTermsSignedError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.SHAMismatchError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">SHAMismatchError</code><span class="sig-paren">(</span><em>path</em>, <em>expected_sha</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#SHAMismatchError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.SHAMismatchError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.errors.StoreError" title="snapcraft.storeapi.errors.StoreError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.errors.StoreError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.storeapi.errors.SHAMismatchError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'SHA512 checksum for {path} is not {expected_sha}.'</em><a class="headerlink" href="#snapcraft.storeapi.errors.SHAMismatchError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.SnapNotFoundError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">SnapNotFoundError</code><span class="sig-paren">(</span><em>name</em>, <em>channel=None</em>, <em>arch=None</em>, <em>series=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#SnapNotFoundError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.SnapNotFoundError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.errors.StoreError" title="snapcraft.storeapi.errors.StoreError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.errors.StoreError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.storeapi.errors.SnapNotFoundError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Snap {name!r} was not found.'</em><a class="headerlink" href="#snapcraft.storeapi.errors.SnapNotFoundError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.StoreAccountInformationError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">StoreAccountInformationError</code><span class="sig-paren">(</span><em>response</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#StoreAccountInformationError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.StoreAccountInformationError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.errors.StoreError" title="snapcraft.storeapi.errors.StoreError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.errors.StoreError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.storeapi.errors.StoreAccountInformationError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Error fetching account information from store: {error}'</em><a class="headerlink" href="#snapcraft.storeapi.errors.StoreAccountInformationError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.StoreAuthenticationError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">StoreAuthenticationError</code><span class="sig-paren">(</span><em>message</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#StoreAuthenticationError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.StoreAuthenticationError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.errors.StoreError" title="snapcraft.storeapi.errors.StoreError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.errors.StoreError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.storeapi.errors.StoreAuthenticationError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Authentication error: {}.'</em><a class="headerlink" href="#snapcraft.storeapi.errors.StoreAuthenticationError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.StoreChannelClosingError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">StoreChannelClosingError</code><span class="sig-paren">(</span><em>response</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#StoreChannelClosingError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.StoreChannelClosingError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.errors.StoreError" title="snapcraft.storeapi.errors.StoreError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.errors.StoreError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.storeapi.errors.StoreChannelClosingError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Could not close channel: {error}'</em><a class="headerlink" href="#snapcraft.storeapi.errors.StoreChannelClosingError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.StoreDeltaApplicationError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">StoreDeltaApplicationError</code><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#StoreDeltaApplicationError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.StoreDeltaApplicationError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">Exception</span></code></p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.StoreError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">StoreError</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#StoreError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.StoreError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="snapcraft.internal.html#snapcraft.internal.errors.SnapcraftError" title="snapcraft.internal.errors.SnapcraftError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.internal.errors.SnapcraftError</span></code></a></p>
+<p>Base class for all storeapi exceptions.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Variables:</th><td class="field-body"><a class="reference internal" href="#snapcraft.storeapi.errors.StoreChannelClosingError.fmt" title="snapcraft.storeapi.errors.StoreChannelClosingError.fmt"><strong>fmt</strong></a> &#8211; A format string that daughter classes override</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.StoreKeyRegistrationError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">StoreKeyRegistrationError</code><span class="sig-paren">(</span><em>response</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#StoreKeyRegistrationError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.StoreKeyRegistrationError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.errors.StoreError" title="snapcraft.storeapi.errors.StoreError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.errors.StoreError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.storeapi.errors.StoreKeyRegistrationError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Key registration failed: {error}'</em><a class="headerlink" href="#snapcraft.storeapi.errors.StoreKeyRegistrationError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.StoreMacaroonNeedsRefreshError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">StoreMacaroonNeedsRefreshError</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#StoreMacaroonNeedsRefreshError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.StoreMacaroonNeedsRefreshError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.errors.StoreError" title="snapcraft.storeapi.errors.StoreError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.errors.StoreError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.storeapi.errors.StoreMacaroonNeedsRefreshError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Authentication macaroon needs to be refreshed.'</em><a class="headerlink" href="#snapcraft.storeapi.errors.StoreMacaroonNeedsRefreshError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.StorePushError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">StorePushError</code><span class="sig-paren">(</span><em>snap_name</em>, <em>response</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#StorePushError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.StorePushError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.errors.StoreError" title="snapcraft.storeapi.errors.StoreError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.errors.StoreError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.storeapi.errors.StorePushError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Received {status_code!r}: {text!r}'</em><a class="headerlink" href="#snapcraft.storeapi.errors.StorePushError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.StoreRegistrationError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">StoreRegistrationError</code><span class="sig-paren">(</span><em>snap_name</em>, <em>response</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#StoreRegistrationError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.StoreRegistrationError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.errors.StoreError" title="snapcraft.storeapi.errors.StoreError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.errors.StoreError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.storeapi.errors.StoreRegistrationError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Registration failed.'</em><a class="headerlink" href="#snapcraft.storeapi.errors.StoreRegistrationError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.StoreReleaseError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">StoreReleaseError</code><span class="sig-paren">(</span><em>snap_name</em>, <em>response</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#StoreReleaseError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.StoreReleaseError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.errors.StoreError" title="snapcraft.storeapi.errors.StoreError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.errors.StoreError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.storeapi.errors.StoreReleaseError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Received {status_code!r}: {text!r}'</em><a class="headerlink" href="#snapcraft.storeapi.errors.StoreReleaseError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.StoreReviewError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">StoreReviewError</code><span class="sig-paren">(</span><em>result</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#StoreReviewError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.StoreReviewError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.errors.StoreError" title="snapcraft.storeapi.errors.StoreError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.errors.StoreError</span></code></a></p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.StoreSnapBuildError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">StoreSnapBuildError</code><span class="sig-paren">(</span><em>response</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#StoreSnapBuildError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.StoreSnapBuildError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.errors.StoreError" title="snapcraft.storeapi.errors.StoreError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.errors.StoreError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.storeapi.errors.StoreSnapBuildError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Could not assert build: {error}'</em><a class="headerlink" href="#snapcraft.storeapi.errors.StoreSnapBuildError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.StoreSnapHistoryError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">StoreSnapHistoryError</code><span class="sig-paren">(</span><em>response</em>, <em>snap_id</em>, <em>series</em>, <em>arch</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#StoreSnapHistoryError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.StoreSnapHistoryError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.errors.StoreError" title="snapcraft.storeapi.errors.StoreError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.errors.StoreError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.storeapi.errors.StoreSnapHistoryError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Error fetching history of snap id {snap_id!r} for {arch!r} in {series!r} series: {error}.'</em><a class="headerlink" href="#snapcraft.storeapi.errors.StoreSnapHistoryError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.StoreSnapStatusError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">StoreSnapStatusError</code><span class="sig-paren">(</span><em>response</em>, <em>snap_id</em>, <em>series</em>, <em>arch</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#StoreSnapStatusError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.StoreSnapStatusError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.errors.StoreSnapHistoryError" title="snapcraft.storeapi.errors.StoreSnapHistoryError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.errors.StoreSnapHistoryError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.storeapi.errors.StoreSnapStatusError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Error fetching status of snap id {snap_id!r} for {arch!r} in {series!r} series: {error}.'</em><a class="headerlink" href="#snapcraft.storeapi.errors.StoreSnapStatusError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.StoreTwoFactorAuthenticationRequired">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">StoreTwoFactorAuthenticationRequired</code><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#StoreTwoFactorAuthenticationRequired"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.StoreTwoFactorAuthenticationRequired" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.errors.StoreAuthenticationError" title="snapcraft.storeapi.errors.StoreAuthenticationError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.errors.StoreAuthenticationError</span></code></a></p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.StoreUploadError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">StoreUploadError</code><span class="sig-paren">(</span><em>response</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#StoreUploadError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.StoreUploadError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.errors.StoreError" title="snapcraft.storeapi.errors.StoreError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.errors.StoreError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.storeapi.errors.StoreUploadError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'There was an error uploading the package.\nReason: {reason!r}\nText: {text!r}'</em><a class="headerlink" href="#snapcraft.storeapi.errors.StoreUploadError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.storeapi.errors.StoreValidationError">
+<em class="property">exception </em><code class="descclassname">snapcraft.storeapi.errors.</code><code class="descname">StoreValidationError</code><span class="sig-paren">(</span><em>snap_id</em>, <em>response</em>, <em>message=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi/errors.html#StoreValidationError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.errors.StoreValidationError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.errors.StoreError" title="snapcraft.storeapi.errors.StoreError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.errors.StoreError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.storeapi.errors.StoreValidationError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Received error {status_code!r}: {text!r}'</em><a class="headerlink" href="#snapcraft.storeapi.errors.StoreValidationError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.storeapi">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-snapcraft.storeapi" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="snapcraft.storeapi.Client">
+<em class="property">class </em><code class="descclassname">snapcraft.storeapi.</code><code class="descname">Client</code><span class="sig-paren">(</span><em>conf</em>, <em>root_url</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#Client"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.Client" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>A base class to define clients for the ols servers.</p>
+<p>This is a simple wrapper around requests.Session so we inherit all good
+bits while providing a simple point for tests to override when needed.</p>
+<dl class="method">
+<dt id="snapcraft.storeapi.Client.get">
+<code class="descname">get</code><span class="sig-paren">(</span><em>url</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#Client.get"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.Client.get" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.Client.post">
+<code class="descname">post</code><span class="sig-paren">(</span><em>url</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#Client.post"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.Client.post" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.Client.put">
+<code class="descname">put</code><span class="sig-paren">(</span><em>url</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#Client.put"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.Client.put" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.Client.request">
+<code class="descname">request</code><span class="sig-paren">(</span><em>method</em>, <em>url</em>, <em>params=None</em>, <em>headers=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#Client.request"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.Client.request" title="Permalink to this definition">¶</a></dt>
+<dd><p>Overriding base class to handle the root url.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="snapcraft.storeapi.SCAClient">
+<em class="property">class </em><code class="descclassname">snapcraft.storeapi.</code><code class="descname">SCAClient</code><span class="sig-paren">(</span><em>conf</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SCAClient"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SCAClient" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.Client" title="snapcraft.storeapi.Client"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.Client</span></code></a></p>
+<p>The software center agent deals with managing snaps.</p>
+<dl class="method">
+<dt id="snapcraft.storeapi.SCAClient.close_channels">
+<code class="descname">close_channels</code><span class="sig-paren">(</span><em>snap_id</em>, <em>channel_names</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SCAClient.close_channels"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SCAClient.close_channels" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.SCAClient.get_account_information">
+<code class="descname">get_account_information</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SCAClient.get_account_information"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SCAClient.get_account_information" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.SCAClient.get_macaroon">
+<code class="descname">get_macaroon</code><span class="sig-paren">(</span><em>acls</em>, <em>packages=None</em>, <em>channels=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SCAClient.get_macaroon"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SCAClient.get_macaroon" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.SCAClient.get_validations">
+<code class="descname">get_validations</code><span class="sig-paren">(</span><em>snap_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SCAClient.get_validations"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SCAClient.get_validations" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.SCAClient.push_snap_build">
+<code class="descname">push_snap_build</code><span class="sig-paren">(</span><em>snap_id</em>, <em>snap_build</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SCAClient.push_snap_build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SCAClient.push_snap_build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.SCAClient.push_validation">
+<code class="descname">push_validation</code><span class="sig-paren">(</span><em>snap_id</em>, <em>assertion</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SCAClient.push_validation"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SCAClient.push_validation" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.SCAClient.register">
+<code class="descname">register</code><span class="sig-paren">(</span><em>snap_name</em>, <em>is_private</em>, <em>series</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SCAClient.register"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SCAClient.register" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.SCAClient.register_key">
+<code class="descname">register_key</code><span class="sig-paren">(</span><em>account_key_request</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SCAClient.register_key"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SCAClient.register_key" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.SCAClient.request">
+<code class="descname">request</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SCAClient.request"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SCAClient.request" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.SCAClient.sign_developer_agreement">
+<code class="descname">sign_developer_agreement</code><span class="sig-paren">(</span><em>latest_tos_accepted=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SCAClient.sign_developer_agreement"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SCAClient.sign_developer_agreement" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.SCAClient.snap_history">
+<code class="descname">snap_history</code><span class="sig-paren">(</span><em>snap_id</em>, <em>series</em>, <em>arch</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SCAClient.snap_history"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SCAClient.snap_history" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.SCAClient.snap_push_metadata">
+<code class="descname">snap_push_metadata</code><span class="sig-paren">(</span><em>snap_name</em>, <em>updown_data</em>, <em>delta_format=None</em>, <em>delta_hash=None</em>, <em>source_hash=None</em>, <em>target_hash=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SCAClient.snap_push_metadata"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SCAClient.snap_push_metadata" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.SCAClient.snap_push_precheck">
+<code class="descname">snap_push_precheck</code><span class="sig-paren">(</span><em>snap_name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SCAClient.snap_push_precheck"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SCAClient.snap_push_precheck" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.SCAClient.snap_release">
+<code class="descname">snap_release</code><span class="sig-paren">(</span><em>snap_name</em>, <em>revision</em>, <em>channels</em>, <em>delta_format=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SCAClient.snap_release"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SCAClient.snap_release" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.SCAClient.snap_status">
+<code class="descname">snap_status</code><span class="sig-paren">(</span><em>snap_id</em>, <em>series</em>, <em>arch</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SCAClient.snap_status"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SCAClient.snap_status" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="snapcraft.storeapi.SSOClient">
+<em class="property">class </em><code class="descclassname">snapcraft.storeapi.</code><code class="descname">SSOClient</code><span class="sig-paren">(</span><em>conf</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SSOClient"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SSOClient" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.Client" title="snapcraft.storeapi.Client"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.Client</span></code></a></p>
+<p>The Single Sign On server deals with authentication.</p>
+<p>It is used directly or indirectly by other servers.</p>
+<dl class="method">
+<dt id="snapcraft.storeapi.SSOClient.get_unbound_discharge">
+<code class="descname">get_unbound_discharge</code><span class="sig-paren">(</span><em>email</em>, <em>password</em>, <em>one_time_password</em>, <em>caveat_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SSOClient.get_unbound_discharge"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SSOClient.get_unbound_discharge" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.SSOClient.refresh_unbound_discharge">
+<code class="descname">refresh_unbound_discharge</code><span class="sig-paren">(</span><em>unbound_discharge</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SSOClient.refresh_unbound_discharge"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SSOClient.refresh_unbound_discharge" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="snapcraft.storeapi.SnapIndexClient">
+<em class="property">class </em><code class="descclassname">snapcraft.storeapi.</code><code class="descname">SnapIndexClient</code><span class="sig-paren">(</span><em>conf</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SnapIndexClient"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SnapIndexClient" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.Client" title="snapcraft.storeapi.Client"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.Client</span></code></a></p>
+<p>The Click Package Index knows everything about existing snaps.</p>
+<p><a class="reference external" href="https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex">https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex</a> is the
+canonical reference.</p>
+<dl class="method">
+<dt id="snapcraft.storeapi.SnapIndexClient.get">
+<code class="descname">get</code><span class="sig-paren">(</span><em>url</em>, <em>headers=None</em>, <em>params=None</em>, <em>stream=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SnapIndexClient.get"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SnapIndexClient.get" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.SnapIndexClient.get_default_headers">
+<code class="descname">get_default_headers</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SnapIndexClient.get_default_headers"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SnapIndexClient.get_default_headers" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return default headers for CPI requests.</p>
+<p>Tries to build an &#8216;Authorization&#8217; header with local credentials
+if they are available.
+Also pin specific branded store if <cite>SNAPCRAFT_UBUNTU_STORE</cite>
+environment is set.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.SnapIndexClient.get_package">
+<code class="descname">get_package</code><span class="sig-paren">(</span><em>snap_name</em>, <em>channel</em>, <em>arch=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#SnapIndexClient.get_package"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.SnapIndexClient.get_package" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="snapcraft.storeapi.StatusTracker">
+<em class="property">class </em><code class="descclassname">snapcraft.storeapi.</code><code class="descname">StatusTracker</code><span class="sig-paren">(</span><em>status_details_url</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#StatusTracker"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.StatusTracker" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dl class="method">
+<dt id="snapcraft.storeapi.StatusTracker.raise_for_code">
+<code class="descname">raise_for_code</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#StatusTracker.raise_for_code"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.StatusTracker.raise_for_code" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.StatusTracker.track">
+<code class="descname">track</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#StatusTracker.track"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.StatusTracker.track" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="snapcraft.storeapi.StoreClient">
+<em class="property">class </em><code class="descclassname">snapcraft.storeapi.</code><code class="descname">StoreClient</code><a class="reference internal" href="_modules/snapcraft/storeapi.html#StoreClient"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.StoreClient" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>High-level client for the V2.0 API SCA resources.</p>
+<dl class="method">
+<dt id="snapcraft.storeapi.StoreClient.close_channels">
+<code class="descname">close_channels</code><span class="sig-paren">(</span><em>snap_id</em>, <em>channel_names</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#StoreClient.close_channels"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.StoreClient.close_channels" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.StoreClient.download">
+<code class="descname">download</code><span class="sig-paren">(</span><em>snap_name</em>, <em>channel</em>, <em>download_path</em>, <em>arch=None</em>, <em>except_hash=''</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#StoreClient.download"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.StoreClient.download" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.StoreClient.get_account_information">
+<code class="descname">get_account_information</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#StoreClient.get_account_information"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.StoreClient.get_account_information" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.StoreClient.get_snap_history">
+<code class="descname">get_snap_history</code><span class="sig-paren">(</span><em>snap_name</em>, <em>series=None</em>, <em>arch=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#StoreClient.get_snap_history"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.StoreClient.get_snap_history" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.StoreClient.get_snap_status">
+<code class="descname">get_snap_status</code><span class="sig-paren">(</span><em>snap_name</em>, <em>series=None</em>, <em>arch=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#StoreClient.get_snap_status"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.StoreClient.get_snap_status" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.StoreClient.get_validations">
+<code class="descname">get_validations</code><span class="sig-paren">(</span><em>snap_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#StoreClient.get_validations"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.StoreClient.get_validations" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.StoreClient.login">
+<code class="descname">login</code><span class="sig-paren">(</span><em>email</em>, <em>password</em>, <em>one_time_password=None</em>, <em>acls=None</em>, <em>packages=None</em>, <em>channels=None</em>, <em>save=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#StoreClient.login"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.StoreClient.login" title="Permalink to this definition">¶</a></dt>
+<dd><p>Log in via the Ubuntu One SSO API.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.StoreClient.logout">
+<code class="descname">logout</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#StoreClient.logout"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.StoreClient.logout" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.StoreClient.push_precheck">
+<code class="descname">push_precheck</code><span class="sig-paren">(</span><em>snap_name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#StoreClient.push_precheck"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.StoreClient.push_precheck" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.StoreClient.push_snap_build">
+<code class="descname">push_snap_build</code><span class="sig-paren">(</span><em>snap_id</em>, <em>snap_build</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#StoreClient.push_snap_build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.StoreClient.push_snap_build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.StoreClient.push_validation">
+<code class="descname">push_validation</code><span class="sig-paren">(</span><em>snap_id</em>, <em>assertion</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#StoreClient.push_validation"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.StoreClient.push_validation" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.StoreClient.register">
+<code class="descname">register</code><span class="sig-paren">(</span><em>snap_name</em>, <em>is_private=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#StoreClient.register"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.StoreClient.register" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.StoreClient.register_key">
+<code class="descname">register_key</code><span class="sig-paren">(</span><em>account_key_request</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#StoreClient.register_key"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.StoreClient.register_key" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.StoreClient.release">
+<code class="descname">release</code><span class="sig-paren">(</span><em>snap_name</em>, <em>revision</em>, <em>channels</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#StoreClient.release"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.StoreClient.release" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.StoreClient.sign_developer_agreement">
+<code class="descname">sign_developer_agreement</code><span class="sig-paren">(</span><em>latest_tos_accepted=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#StoreClient.sign_developer_agreement"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.StoreClient.sign_developer_agreement" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.storeapi.StoreClient.upload">
+<code class="descname">upload</code><span class="sig-paren">(</span><em>snap_name</em>, <em>snap_filename</em>, <em>delta_format=None</em>, <em>source_hash=None</em>, <em>target_hash=None</em>, <em>delta_hash=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#StoreClient.upload"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.StoreClient.upload" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="snapcraft.storeapi.UpDownClient">
+<em class="property">class </em><code class="descclassname">snapcraft.storeapi.</code><code class="descname">UpDownClient</code><span class="sig-paren">(</span><em>conf</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#UpDownClient"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.UpDownClient" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.storeapi.Client" title="snapcraft.storeapi.Client"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.storeapi.Client</span></code></a></p>
+<p>The Up/Down server provide upload/download snap capabilities.</p>
+<dl class="method">
+<dt id="snapcraft.storeapi.UpDownClient.upload">
+<code class="descname">upload</code><span class="sig-paren">(</span><em>monitor</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/storeapi.html#UpDownClient.upload"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.storeapi.UpDownClient.upload" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">snapcraft.storeapi package</a><ul>
+<li><a class="reference internal" href="#submodules">Submodules</a></li>
+<li><a class="reference internal" href="#module-snapcraft.storeapi.compat">snapcraft.storeapi.compat module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.storeapi.constants">snapcraft.storeapi.constants module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.storeapi.errors">snapcraft.storeapi.errors module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.storeapi">Module contents</a></li>
+</ul>
+</li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  <li><a href="modules.html">snapcraft</a><ul>
+  <li><a href="snapcraft.html">snapcraft package</a><ul>
+      <li>Previous: <a href="snapcraft.plugins.html" title="previous chapter">snapcraft.plugins package</a></li>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/snapcraft.storeapi.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+      |
+      <a href="_sources/snapcraft.storeapi.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,441 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.plugins.kernel &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../../index.html" />
+    <link rel="up" title="snapcraft" href="../../snapcraft.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.plugins.kernel</h1><div class="highlight"><pre>
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2016 Canonical Ltd</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="sd">&quot;&quot;&quot;The kernel plugin refines the generic kbuild plugin to allow building</span>
+<span class="sd">kernel snaps with all the bells and whistles in one shot...</span>
+
+<span class="sd">WARNING: this plugin&#39;s API is unstable. The cross compiling support is</span>
+<span class="sd">         experimental.</span>
+
+<span class="sd">The following kernel specific options are provided by this plugin:</span>
+
+<span class="sd">    - kernel-image-target:</span>
+<span class="sd">      (yaml object or string; default: bzImage)</span>
+<span class="sd">      the default target is bzImage and can be set to any specific</span>
+<span class="sd">      target.</span>
+<span class="sd">      For more complex cases where one would want to use</span>
+<span class="sd">      the same snapcraft.yaml to target multiple architectures a</span>
+<span class="sd">      yaml object can be used. This yaml object would be a map of</span>
+<span class="sd">      debian architecture and kernel image build targets.</span>
+
+<span class="sd">    - kernel-initrd-modules:</span>
+<span class="sd">      (array of string)</span>
+<span class="sd">      list of modules to include in initrd; note that kernel snaps do not</span>
+<span class="sd">      provide the core boot logic which comes from snappy Ubuntu Core</span>
+<span class="sd">      OS snap. Include all modules you need for mounting rootfs here.</span>
+
+<span class="sd">    - kernel-with-firmware:</span>
+<span class="sd">      (boolean; default: True)</span>
+<span class="sd">      use this flag to disable shipping binary firmwares</span>
+
+<span class="sd">    - kernel-initrd-firmware:</span>
+<span class="sd">      (array of string)</span>
+<span class="sd">      list of firmware files to include in the initrd; these need to be</span>
+<span class="sd">      relative paths to .installdir and this option does not work if you</span>
+<span class="sd">      disable building firmware</span>
+
+<span class="sd">    - kernel-initrd-compression:</span>
+<span class="sd">      (string; default: gz)</span>
+<span class="sd">      initrd compression to use; the only supported value now is &#39;gz&#39;.</span>
+
+<span class="sd">    - kernel-device-trees:</span>
+<span class="sd">      (array of string)</span>
+<span class="sd">      list of device trees to build, the format is &lt;device-tree-name&gt;.dts.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">glob</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">magic</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">shutil</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">tempfile</span>
+
+<span class="kn">import</span> <span class="nn">snapcraft</span>
+<span class="kn">from</span> <span class="nn">snapcraft.plugins</span> <span class="kn">import</span> <span class="n">kbuild</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<span class="n">_compression_command</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;gz&#39;</span><span class="p">:</span> <span class="s1">&#39;gzip&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="KernelPlugin"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.kernel.KernelPlugin">[docs]</a><span class="k">class</span> <span class="nc">KernelPlugin</span><span class="p">(</span><span class="n">kbuild</span><span class="o">.</span><span class="n">KBuildPlugin</span><span class="p">):</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="KernelPlugin.schema"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.kernel.KernelPlugin.schema">[docs]</a>    <span class="k">def</span> <span class="nf">schema</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">schema</span><span class="p">()</span>
+
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;kernel-image-target&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;oneOf&#39;</span><span class="p">:</span> <span class="p">[</span>
+                <span class="p">{</span><span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">},</span>
+                <span class="p">{</span><span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;object&#39;</span><span class="p">},</span>
+            <span class="p">],</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;bzImage&#39;</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;kernel-with-firmware&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;boolean&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;kernel-initrd-modules&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;array&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;minitems&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s1">&#39;uniqueItems&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+            <span class="s1">&#39;items&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="p">}</span>
+
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;kernel-initrd-firmware&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;array&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;minitems&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s1">&#39;uniqueItems&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+            <span class="s1">&#39;items&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="p">}</span>
+
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;kernel-device-trees&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;array&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;minitems&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s1">&#39;uniqueItems&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+            <span class="s1">&#39;items&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="p">}</span>
+
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;kernel-initrd-compression&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;gz&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;enum&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;gz&#39;</span><span class="p">],</span>
+        <span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">schema</span></div>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="KernelPlugin.get_build_properties"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.kernel.KernelPlugin.get_build_properties">[docs]</a>    <span class="k">def</span> <span class="nf">get_build_properties</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="c1"># Inform Snapcraft of the properties associated with building. If these</span>
+        <span class="c1"># change in the YAML Snapcraft will consider the build step dirty.</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">get_build_properties</span><span class="p">()</span> <span class="o">+</span> <span class="p">[</span>
+            <span class="s1">&#39;kernel-image-target&#39;</span><span class="p">,</span> <span class="s1">&#39;kernel-with-firmware&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;kernel-initrd-modules&#39;</span><span class="p">,</span> <span class="s1">&#39;kernel-initrd-firmware&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;kernel-device-trees&#39;</span><span class="p">,</span> <span class="s1">&#39;kernel-initrd-compression&#39;</span><span class="p">]</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">compression_cmd</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_compression_command</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">kernel_initrd_compression</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">options</span><span class="p">,</span> <span class="n">project</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">options</span><span class="p">,</span> <span class="n">project</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_kernel_targets</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">os_snap</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sourcedir</span><span class="p">,</span> <span class="s1">&#39;os.snap&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kernel_release</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+
+<div class="viewcode-block" id="KernelPlugin.enable_cross_compilation"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.kernel.KernelPlugin.enable_cross_compilation">[docs]</a>    <span class="k">def</span> <span class="nf">enable_cross_compilation</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Cross compiling kernel target {!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="o">.</span><span class="n">kernel_arch</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">make_cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;ARCH={}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="o">.</span><span class="n">kernel_arch</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">make_cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;CROSS_COMPILE={}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="o">.</span><span class="n">cross_compiler_prefix</span><span class="p">))</span>
+        <span class="c1"># by enabling cross compilation, the kernel_arch and deb_arch</span>
+        <span class="c1"># from the project options have effectively changed so we reset</span>
+        <span class="c1"># kernel targets.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_kernel_targets</span><span class="p">()</span></div>
+
+    <span class="k">def</span> <span class="nf">_set_kernel_targets</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">kernel_image_target</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">kernel_image_target</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">kernel_image_target</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="o">.</span><span class="n">deb_arch</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">kernel_image_target</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">kernel_image_target</span> <span class="o">=</span> \
+                <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">kernel_image_target</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="o">.</span><span class="n">deb_arch</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">make_targets</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">kernel_image_target</span><span class="p">,</span> <span class="s1">&#39;modules&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dtbs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;{}.dtb&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">kernel_device_trees</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtbs</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">make_targets</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtbs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">make_install_targets</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s1">&#39;modules_install&#39;</span><span class="p">,</span> <span class="s1">&#39;INSTALL_MOD_PATH={}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">)]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">make_install_targets</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_fw_install_targets</span><span class="p">())</span>
+
+    <span class="k">def</span> <span class="nf">_get_fw_install_targets</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">kernel_with_firmware</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="s1">&#39;firmware_install&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;INSTALL_FW_PATH={}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="s1">&#39;lib&#39;</span><span class="p">,</span> <span class="s1">&#39;firmware&#39;</span><span class="p">))]</span>
+
+    <span class="k">def</span> <span class="nf">_unpack_generic_initrd</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">initrd_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;lib&#39;</span><span class="p">,</span> <span class="s1">&#39;ubuntu-core-generic-initrd&#39;</span><span class="p">,</span> <span class="s1">&#39;initrd.img-core&#39;</span><span class="p">)</span>
+        <span class="n">initrd_unpacked_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">builddir</span><span class="p">,</span> <span class="s1">&#39;initrd-staging&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">initrd_unpacked_path</span><span class="p">):</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">initrd_unpacked_path</span><span class="p">)</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">initrd_unpacked_path</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">TemporaryDirectory</span><span class="p">()</span> <span class="k">as</span> <span class="n">temp_dir</span><span class="p">:</span>
+            <span class="n">subprocess</span><span class="o">.</span><span class="n">check_call</span><span class="p">([</span>
+                <span class="s1">&#39;unsquashfs&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">os_snap</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">initrd_path</span><span class="p">)],</span>
+                <span class="n">cwd</span><span class="o">=</span><span class="n">temp_dir</span><span class="p">)</span>
+
+            <span class="n">tmp_initrd_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                <span class="n">temp_dir</span><span class="p">,</span> <span class="s1">&#39;squashfs-root&#39;</span><span class="p">,</span> <span class="n">initrd_path</span><span class="p">)</span>
+
+            <span class="n">mime_detector</span> <span class="o">=</span> <span class="n">magic</span><span class="o">.</span><span class="n">open</span><span class="p">(</span>
+                <span class="n">magic</span><span class="o">.</span><span class="n">MAGIC_MIME_TYPE</span> <span class="o">|</span> <span class="n">magic</span><span class="o">.</span><span class="n">MAGIC_ERROR</span><span class="p">)</span>
+            <span class="n">mime_detector</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
+            <span class="c1"># Make sure we&#39;re getting the mime type of the actual initrd, not</span>
+            <span class="c1"># a symbolic link.</span>
+            <span class="n">mime_type</span> <span class="o">=</span> <span class="n">mime_detector</span><span class="o">.</span><span class="n">file</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="n">tmp_initrd_path</span><span class="p">))</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">mime_type</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="s1">&#39;Unable to determine mime type for {!r}: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="n">tmp_initrd_path</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">strerror</span><span class="p">(</span><span class="n">mime_detector</span><span class="o">.</span><span class="n">errno</span><span class="p">())))</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;initrd mime_type: {} {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">tmp_initrd_path</span><span class="p">,</span> <span class="n">mime_type</span><span class="p">))</span>
+
+            <span class="c1"># Support gzip and lzma/xz</span>
+            <span class="n">gzip_mime_types</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;application/gzip&#39;</span><span class="p">,</span> <span class="s1">&#39;application/x-gzip&#39;</span><span class="p">)</span>
+            <span class="n">xz_mime_types</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;application/x-xz&#39;</span><span class="p">,</span> <span class="s1">&#39;application/x-lzma&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">x</span> <span class="ow">in</span> <span class="n">mime_type</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">gzip_mime_types</span><span class="p">):</span>
+                <span class="n">decompressor</span> <span class="o">=</span> <span class="s1">&#39;gzip&#39;</span>
+            <span class="k">elif</span> <span class="nb">any</span><span class="p">(</span><span class="n">x</span> <span class="ow">in</span> <span class="n">mime_type</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">xz_mime_types</span><span class="p">):</span>
+                <span class="n">decompressor</span> <span class="o">=</span> <span class="s1">&#39;xz&#39;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="s1">&#39;initrd file type is unsupported: {!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">mime_type</span><span class="p">))</span>
+
+            <span class="n">subprocess</span><span class="o">.</span><span class="n">check_call</span><span class="p">(</span>
+                <span class="s1">&#39;cat {0} | {1} -dc | cpio -i&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">tmp_initrd_path</span><span class="p">,</span> <span class="n">decompressor</span><span class="p">),</span>
+                <span class="n">shell</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">cwd</span><span class="o">=</span><span class="n">initrd_unpacked_path</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">initrd_unpacked_path</span>
+
+    <span class="k">def</span> <span class="nf">_make_initrd</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Generating driver initrd for kernel release: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">kernel_release</span><span class="p">))</span>
+
+        <span class="n">initrd_unpacked_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unpack_generic_initrd</span><span class="p">()</span>
+
+        <span class="n">modprobe_outs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">module</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">kernel_initrd_modules</span><span class="p">:</span>
+            <span class="n">modprobe_out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_output</span><span class="p">([</span>
+                <span class="s1">&#39;modprobe&#39;</span><span class="p">,</span> <span class="s1">&#39;-n&#39;</span><span class="p">,</span> <span class="s1">&#39;--show-depends&#39;</span><span class="p">,</span> <span class="s1">&#39;-d&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span>
+                <span class="s1">&#39;-S&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">kernel_release</span><span class="p">,</span> <span class="n">module</span><span class="p">])</span>
+            <span class="n">modprobe_outs</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">modprobe_out</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">linesep</span><span class="p">))</span>
+
+        <span class="n">modules_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;lib&#39;</span><span class="p">,</span> <span class="s1">&#39;modules&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">kernel_release</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">src</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span><span class="n">modprobe_outs</span><span class="p">):</span>
+            <span class="n">src</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="o">-</span><span class="mi">1</span><span class="p">:][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">dst</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">initrd_unpacked_path</span><span class="p">,</span>
+                               <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">))</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">dst</span><span class="p">),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">link</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">dst</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">modprobe_outs</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">module_info</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;modules.dep&#39;</span><span class="p">,</span> <span class="s1">&#39;modules.dep.bin&#39;</span><span class="p">]:</span>
+                <span class="n">module_info_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">modules_path</span><span class="p">,</span> <span class="n">module_info</span><span class="p">)</span>
+                <span class="n">src</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="n">module_info_path</span><span class="p">)</span>
+                <span class="n">dst</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">initrd_unpacked_path</span><span class="p">,</span> <span class="n">module_info_path</span><span class="p">)</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">link</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">dst</span><span class="p">)</span>
+
+        <span class="c1"># TODO pickup required firmware from modules.</span>
+        <span class="k">for</span> <span class="n">firmware</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">kernel_initrd_firmware</span><span class="p">:</span>
+            <span class="n">src</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="n">firmware</span><span class="p">)</span>
+            <span class="n">dst</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">initrd_unpacked_path</span><span class="p">,</span> <span class="n">firmware</span><span class="p">)</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">dst</span><span class="p">),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">src</span><span class="p">):</span>
+                <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">dst</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">link</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">dst</span><span class="p">)</span>
+
+        <span class="n">initrd</span> <span class="o">=</span> <span class="s1">&#39;initrd-{}.img&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">kernel_release</span><span class="p">)</span>
+        <span class="n">initrd_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="n">initrd</span><span class="p">)</span>
+        <span class="n">subprocess</span><span class="o">.</span><span class="n">check_call</span><span class="p">(</span>
+            <span class="s1">&#39;find . | cpio --create --format=newc | &#39;</span>
+            <span class="s1">&#39;{} &gt; {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">compression_cmd</span><span class="p">,</span> <span class="n">initrd_path</span><span class="p">),</span> <span class="n">shell</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+            <span class="n">cwd</span><span class="o">=</span><span class="n">initrd_unpacked_path</span><span class="p">)</span>
+        <span class="n">unversioned_initrd_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="s1">&#39;initrd.img&#39;</span><span class="p">)</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">link</span><span class="p">(</span><span class="n">initrd_path</span><span class="p">,</span> <span class="n">unversioned_initrd_path</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_parse_kernel_release</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">kernel_release_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">builddir</span><span class="p">,</span> <span class="s1">&#39;include&#39;</span><span class="p">,</span> <span class="s1">&#39;config&#39;</span><span class="p">,</span> <span class="s1">&#39;kernel.release&#39;</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">kernel_release_path</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">kernel_release</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">kernel_release</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;No kernel release version info found at {!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">kernel_release_path</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_get_build_arch_dir</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">builddir</span><span class="p">,</span> <span class="s1">&#39;arch&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="o">.</span><span class="n">kernel_arch</span><span class="p">,</span> <span class="s1">&#39;boot&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_copy_vmlinuz</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">kernel</span> <span class="o">=</span> <span class="s1">&#39;{}-{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">kernel_image_target</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">kernel_release</span><span class="p">)</span>
+        <span class="n">src</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_build_arch_dir</span><span class="p">(),</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">kernel_image_target</span><span class="p">)</span>
+        <span class="n">dst</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="n">kernel</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">src</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;kernel build did not output a vmlinux binary in top level &#39;</span>
+                <span class="s1">&#39;dir, expected {!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">src</span><span class="p">))</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">link</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">dst</span><span class="p">)</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">link</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="s1">&#39;kernel.img&#39;</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_copy_system_map</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">src</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">builddir</span><span class="p">,</span> <span class="s1">&#39;System.map&#39;</span><span class="p">)</span>
+        <span class="n">dst</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="s1">&#39;System.map-{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">kernel_release</span><span class="p">))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">src</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;kernel build did not output a System.map in top level dir&#39;</span><span class="p">)</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">link</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">dst</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_copy_dtbs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">kernel_device_trees</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="n">dtb_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="s1">&#39;dtbs&#39;</span><span class="p">)</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">dtb_dir</span><span class="p">)</span>
+
+        <span class="n">base_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_build_arch_dir</span><span class="p">(),</span> <span class="s1">&#39;dts&#39;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">dtb</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtbs</span><span class="p">:</span>
+            <span class="n">found_dtbs</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">base_path</span><span class="p">,</span> <span class="n">dtb</span><span class="p">))</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">found_dtbs</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="s1">&#39;No match for dtb {!r} was found&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">dtb</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">found_dtbs</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">link</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dtb_dir</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">f</span><span class="p">)))</span>
+
+<div class="viewcode-block" id="KernelPlugin.pull"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.kernel.KernelPlugin.pull">[docs]</a>    <span class="k">def</span> <span class="nf">pull</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">pull</span><span class="p">()</span>
+        <span class="n">snapcraft</span><span class="o">.</span><span class="n">download</span><span class="p">(</span>
+            <span class="s1">&#39;ubuntu-core&#39;</span><span class="p">,</span> <span class="s1">&#39;edge&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">os_snap</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="o">.</span><span class="n">deb_arch</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="KernelPlugin.do_install"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.kernel.KernelPlugin.do_install">[docs]</a>    <span class="k">def</span> <span class="nf">do_install</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">do_install</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_parse_kernel_release</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_make_initrd</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_copy_vmlinuz</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_copy_system_map</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_copy_dtbs</span><span class="p">()</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  <li><a href="../../snapcraft.html">snapcraft</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

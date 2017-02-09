@@ -1,0 +1,318 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.file_utils &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../index.html" />
+    <link rel="up" title="snapcraft" href="../snapcraft.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.file_utils</h1><div class="highlight"><pre>
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2016 Canonical Ltd</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="kn">from</span> <span class="nn">contextlib</span> <span class="kn">import</span> <span class="n">contextmanager</span>
+<span class="kn">import</span> <span class="nn">hashlib</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">shutil</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+
+<span class="kn">from</span> <span class="nn">snapcraft.internal.errors</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">RequiredCommandFailure</span><span class="p">,</span>
+    <span class="n">RequiredCommandNotFound</span><span class="p">,</span>
+    <span class="n">RequiredPathDoesNotExist</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">version_info</span> <span class="o">&lt;</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">6</span><span class="p">):</span>
+    <span class="kn">import</span> <span class="nn">sha3</span>  <span class="c1"># noqa</span>
+
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="replace_in_file"><a class="viewcode-back" href="../../snapcraft.html#snapcraft.file_utils.replace_in_file">[docs]</a><span class="k">def</span> <span class="nf">replace_in_file</span><span class="p">(</span><span class="n">directory</span><span class="p">,</span> <span class="n">file_pattern</span><span class="p">,</span> <span class="n">search_pattern</span><span class="p">,</span> <span class="n">replacement</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Searches and replaces patterns that match a file pattern.</span>
+<span class="sd">    :param str directory: The directory to look for files.</span>
+<span class="sd">    :param str file_pattern: The file pattern to match inside directory.</span>
+<span class="sd">    :param search_pattern: A re.compile&#39;d pattern to search for within</span>
+<span class="sd">                           matching files.</span>
+<span class="sd">    :param str replacement: The string to replace the matching search_pattern</span>
+<span class="sd">                            with.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">directories</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span><span class="n">directory</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">file_name</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">file_pattern</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">file_name</span><span class="p">):</span>
+                <span class="n">_search_and_replace_contents</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">file_name</span><span class="p">),</span>
+                                             <span class="n">search_pattern</span><span class="p">,</span> <span class="n">replacement</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="link_or_copy"><a class="viewcode-back" href="../../snapcraft.html#snapcraft.file_utils.link_or_copy">[docs]</a><span class="k">def</span> <span class="nf">link_or_copy</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">destination</span><span class="p">,</span> <span class="n">follow_symlinks</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Hard-link source and destination files. Copy if it fails to link.</span>
+
+<span class="sd">    Hard-linking may fail (e.g. a cross-device link, or permission denied), so</span>
+<span class="sd">    as a backup plan we just copy it.</span>
+
+<span class="sd">    :param str source: The source to which destination will be linked.</span>
+<span class="sd">    :param str destination: The destination to be linked to source.</span>
+<span class="sd">    :param bool follow_symlinks: Whether or not symlinks should be followed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># Note that follow_symlinks doesn&#39;t seem to work for os.link, so we&#39;ll</span>
+        <span class="c1"># implement this logic ourselves using realpath.</span>
+        <span class="n">source_path</span> <span class="o">=</span> <span class="n">source</span>
+        <span class="k">if</span> <span class="n">follow_symlinks</span><span class="p">:</span>
+            <span class="n">source_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">destination</span><span class="p">)):</span>
+            <span class="n">create_similar_directory</span><span class="p">(</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">source_path</span><span class="p">),</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">destination</span><span class="p">))</span>
+        <span class="c1"># Setting follow_symlinks=False in case this bug is ever fixed</span>
+        <span class="c1"># upstream-- we want this function to continue supporting NOT following</span>
+        <span class="c1"># symlinks.</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">link</span><span class="p">(</span><span class="n">source_path</span><span class="p">,</span> <span class="n">destination</span><span class="p">,</span> <span class="n">follow_symlinks</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+        <span class="n">shutil</span><span class="o">.</span><span class="n">copy2</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">destination</span><span class="p">,</span> <span class="n">follow_symlinks</span><span class="o">=</span><span class="n">follow_symlinks</span><span class="p">)</span>
+        <span class="n">uid</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">stat</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">follow_symlinks</span><span class="o">=</span><span class="n">follow_symlinks</span><span class="p">)</span><span class="o">.</span><span class="n">st_uid</span>
+        <span class="n">gid</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">stat</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">follow_symlinks</span><span class="o">=</span><span class="n">follow_symlinks</span><span class="p">)</span><span class="o">.</span><span class="n">st_gid</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">chown</span><span class="p">(</span><span class="n">destination</span><span class="p">,</span> <span class="n">uid</span><span class="p">,</span> <span class="n">gid</span><span class="p">,</span> <span class="n">follow_symlinks</span><span class="o">=</span><span class="n">follow_symlinks</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">PermissionError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Unable to chown {destination}: {error}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">destination</span><span class="o">=</span><span class="n">destination</span><span class="p">,</span> <span class="n">error</span><span class="o">=</span><span class="n">e</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="link_or_copy_tree"><a class="viewcode-back" href="../../snapcraft.html#snapcraft.file_utils.link_or_copy_tree">[docs]</a><span class="k">def</span> <span class="nf">link_or_copy_tree</span><span class="p">(</span><span class="n">source_tree</span><span class="p">,</span> <span class="n">destination_tree</span><span class="p">,</span>
+                      <span class="n">copy_function</span><span class="o">=</span><span class="n">link_or_copy</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Copy a source tree into a destination, hard-linking if possile.</span>
+
+<span class="sd">    :param str source_tree: Source directory to be copied.</span>
+<span class="sd">    :param str destination_tree: Destination directory. If this directory</span>
+<span class="sd">                                 already exists, the files in `source_tree`</span>
+<span class="sd">                                 will take precedence.</span>
+<span class="sd">    :param str boundary: Filesystem boundary no symlinks are allowed to cross.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">source_tree</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">NotADirectoryError</span><span class="p">(</span><span class="s1">&#39;{!r} is not a directory&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">source_tree</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">destination_tree</span><span class="p">)</span> <span class="ow">and</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">destination_tree</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="n">NotADirectoryError</span><span class="p">(</span>
+            <span class="s1">&#39;Cannot overwrite non-directory {!r} with directory &#39;</span>
+            <span class="s1">&#39;{!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">destination_tree</span><span class="p">,</span> <span class="n">source_tree</span><span class="p">))</span>
+
+    <span class="n">create_similar_directory</span><span class="p">(</span><span class="n">source_tree</span><span class="p">,</span> <span class="n">destination_tree</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">directories</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span><span class="n">source_tree</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">directory</span> <span class="ow">in</span> <span class="n">directories</span><span class="p">:</span>
+            <span class="n">source</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">directory</span><span class="p">)</span>
+            <span class="c1"># os.walk doesn&#39;t by default follow symlinks (which is good), but</span>
+            <span class="c1"># it includes symlinks that are pointing to directories in the</span>
+            <span class="c1"># directories list. We want to treat it as a file, here.</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">islink</span><span class="p">(</span><span class="n">source</span><span class="p">):</span>
+                <span class="n">files</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">directory</span><span class="p">)</span>
+                <span class="k">continue</span>
+
+            <span class="n">destination</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                <span class="n">destination_tree</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">source_tree</span><span class="p">))</span>
+
+            <span class="n">create_similar_directory</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">destination</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">file_name</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+            <span class="n">source</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">file_name</span><span class="p">)</span>
+            <span class="n">destination</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                <span class="n">destination_tree</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">source_tree</span><span class="p">))</span>
+
+            <span class="n">copy_function</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">destination</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="create_similar_directory"><a class="viewcode-back" href="../../snapcraft.html#snapcraft.file_utils.create_similar_directory">[docs]</a><span class="k">def</span> <span class="nf">create_similar_directory</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">destination</span><span class="p">,</span> <span class="n">follow_symlinks</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Create a directory with the same permission bits and owner information.</span>
+
+<span class="sd">    :param str source: Directory from which to copy name, permission bits, and</span>
+<span class="sd">                       owner information.</span>
+<span class="sd">    :param str destintion: Directory to create and to which the `source`</span>
+<span class="sd">                           information will be copied.</span>
+<span class="sd">    :param bool follow_symlinks: Whether or not symlinks should be followed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">stat</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">stat</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">follow_symlinks</span><span class="o">=</span><span class="n">follow_symlinks</span><span class="p">)</span>
+    <span class="n">uid</span> <span class="o">=</span> <span class="n">stat</span><span class="o">.</span><span class="n">st_uid</span>
+    <span class="n">gid</span> <span class="o">=</span> <span class="n">stat</span><span class="o">.</span><span class="n">st_gid</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">destination</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">chown</span><span class="p">(</span><span class="n">destination</span><span class="p">,</span> <span class="n">uid</span><span class="p">,</span> <span class="n">gid</span><span class="p">,</span> <span class="n">follow_symlinks</span><span class="o">=</span><span class="n">follow_symlinks</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">PermissionError</span> <span class="k">as</span> <span class="n">exception</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Unable to chown {}: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">destination</span><span class="p">,</span> <span class="n">exception</span><span class="p">))</span>
+
+    <span class="n">shutil</span><span class="o">.</span><span class="n">copystat</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">destination</span><span class="p">,</span> <span class="n">follow_symlinks</span><span class="o">=</span><span class="n">follow_symlinks</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">_search_and_replace_contents</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="n">search_pattern</span><span class="p">,</span> <span class="n">replacement</span><span class="p">):</span>
+    <span class="c1"># Don&#39;t bother trying to rewrite a symlink. It&#39;s either invalid or the</span>
+    <span class="c1"># linked file will be rewritten on its own.</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">islink</span><span class="p">(</span><span class="n">file_path</span><span class="p">):</span>
+        <span class="k">return</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="s1">&#39;r+&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">original</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">UnicodeDecodeError</span><span class="p">:</span>
+                <span class="c1"># This was probably a binary file. Skip it.</span>
+                <span class="k">return</span>
+
+            <span class="n">replaced</span> <span class="o">=</span> <span class="n">search_pattern</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="n">replacement</span><span class="p">,</span> <span class="n">original</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">replaced</span> <span class="o">!=</span> <span class="n">original</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">truncate</span><span class="p">()</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">replaced</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">PermissionError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;Unable to open {path} for writing: {error}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">path</span><span class="o">=</span><span class="n">file_path</span><span class="p">,</span> <span class="n">error</span><span class="o">=</span><span class="n">e</span><span class="p">))</span>
+
+
+<div class="viewcode-block" id="executable_exists"><a class="viewcode-back" href="../../snapcraft.html#snapcraft.file_utils.executable_exists">[docs]</a><span class="k">def</span> <span class="nf">executable_exists</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return True if &#39;path&#39; exists and is readable and executable.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">access</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">R_OK</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">X_OK</span><span class="p">)</span></div>
+
+
+<span class="nd">@contextmanager</span>
+<div class="viewcode-block" id="requires_command_success"><a class="viewcode-back" href="../../snapcraft.html#snapcraft.file_utils.requires_command_success">[docs]</a><span class="k">def</span> <span class="nf">requires_command_success</span><span class="p">(</span><span class="n">command</span><span class="p">,</span> <span class="n">not_found_fmt</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">failure_fmt</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">command</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">cmd_list</span> <span class="o">=</span> <span class="n">command</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;command must be a string.&#39;</span><span class="p">)</span>
+    <span class="n">kwargs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">command</span><span class="o">=</span><span class="n">command</span><span class="p">,</span> <span class="n">cmd_list</span><span class="o">=</span><span class="n">cmd_list</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">subprocess</span><span class="o">.</span><span class="n">check_call</span><span class="p">(</span>
+            <span class="n">cmd_list</span><span class="p">,</span> <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span> <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">FileNotFoundError</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">not_found_fmt</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;fmt&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">not_found_fmt</span>
+        <span class="k">raise</span> <span class="n">RequiredCommandNotFound</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">CalledProcessError</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">failure_fmt</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;fmt&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">failure_fmt</span>
+        <span class="k">raise</span> <span class="n">RequiredCommandFailure</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">yield</span></div>
+
+
+<span class="nd">@contextmanager</span>
+<div class="viewcode-block" id="requires_path_exists"><a class="viewcode-back" href="../../snapcraft.html#snapcraft.file_utils.requires_path_exists">[docs]</a><span class="k">def</span> <span class="nf">requires_path_exists</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">error_fmt</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+        <span class="n">kwargs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">error_fmt</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;fmt&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">error_fmt</span>
+        <span class="k">raise</span> <span class="n">RequiredPathDoesNotExist</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">yield</span></div>
+
+
+<div class="viewcode-block" id="calculate_sha3_384"><a class="viewcode-back" href="../../snapcraft.html#snapcraft.file_utils.calculate_sha3_384">[docs]</a><span class="k">def</span> <span class="nf">calculate_sha3_384</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Calculate sha3 384 hash, reading the file in 1MB chunks.&quot;&quot;&quot;</span>
+    <span class="n">blocksize</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="mi">20</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">snap_file</span><span class="p">:</span>
+        <span class="n">hasher</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha3_384</span><span class="p">()</span>
+        <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="n">buf</span> <span class="o">=</span> <span class="n">snap_file</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">blocksize</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">buf</span><span class="p">:</span>
+                <span class="k">break</span>
+            <span class="n">hasher</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">hasher</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  <li><a href="../snapcraft.html">snapcraft</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

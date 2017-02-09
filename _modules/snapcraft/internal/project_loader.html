@@ -1,0 +1,548 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.internal.project_loader &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../../index.html" />
+    <link rel="up" title="snapcraft" href="../../snapcraft.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.internal.project_loader</h1><div class="highlight"><pre>
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2015-2017 Canonical Ltd</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="kn">import</span> <span class="nn">codecs</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">os.path</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="kn">import</span> <span class="nn">jsonschema</span>
+<span class="kn">import</span> <span class="nn">yaml</span>
+
+<span class="kn">import</span> <span class="nn">snapcraft</span>
+<span class="kn">from</span> <span class="nn">snapcraft</span> <span class="kn">import</span> <span class="n">formatting_utils</span>
+<span class="kn">from</span> <span class="nn">snapcraft.internal</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">common</span><span class="p">,</span>
+    <span class="n">errors</span><span class="p">,</span>
+    <span class="n">libraries</span><span class="p">,</span>
+    <span class="n">parts</span><span class="p">,</span>
+    <span class="n">pluginhandler</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">snapcraft._schema</span> <span class="kn">import</span> <span class="n">Validator</span>
+<span class="kn">from</span> <span class="nn">snapcraft.internal.parts</span> <span class="kn">import</span> <span class="n">SnapcraftLogicError</span><span class="p">,</span> <span class="n">get_remote_parts</span>
+
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<span class="nd">@jsonschema.FormatChecker.cls_checks</span><span class="p">(</span><span class="s1">&#39;icon-path&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">_validate_icon</span><span class="p">(</span><span class="n">instance</span><span class="p">):</span>
+    <span class="n">allowed_extensions</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;.png&#39;</span><span class="p">,</span> <span class="s1">&#39;.svg&#39;</span><span class="p">]</span>
+    <span class="n">extension</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">instance</span><span class="o">.</span><span class="n">lower</span><span class="p">())[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">extension</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">allowed_extensions</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">jsonschema</span><span class="o">.</span><span class="n">exceptions</span><span class="o">.</span><span class="n">ValidationError</span><span class="p">(</span>
+            <span class="s2">&quot;&#39;icon&#39; must be either a .png or a .svg&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">instance</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">jsonschema</span><span class="o">.</span><span class="n">exceptions</span><span class="o">.</span><span class="n">ValidationError</span><span class="p">(</span>
+            <span class="s2">&quot;Specified icon &#39;{}&#39; does not exist&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">instance</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="bp">True</span>
+
+
+<div class="viewcode-block" id="InvalidEpochError"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.project_loader.InvalidEpochError">[docs]</a><span class="k">class</span> <span class="nc">InvalidEpochError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+
+<span class="nd">@jsonschema.FormatChecker.cls_checks</span><span class="p">(</span><span class="s1">&#39;epoch&#39;</span><span class="p">,</span> <span class="n">raises</span><span class="o">=</span><span class="n">InvalidEpochError</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">_validate_epoch</span><span class="p">(</span><span class="n">instance</span><span class="p">):</span>
+    <span class="n">str_instance</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">instance</span><span class="p">)</span>
+    <span class="n">pattern</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">&#39;^(?:0|[1-9][0-9]*[*]?)$&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">pattern</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">str_instance</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">InvalidEpochError</span><span class="p">(</span>
+            <span class="s2">&quot;epochs are positive integers followed by an optional asterisk&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="bp">True</span>
+
+
+<div class="viewcode-block" id="SnapcraftYamlFileError"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.project_loader.SnapcraftYamlFileError">[docs]</a><span class="k">class</span> <span class="nc">SnapcraftYamlFileError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">file</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_file</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">yaml_file</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_file</span> <span class="o">=</span> <span class="n">yaml_file</span></div>
+
+
+<div class="viewcode-block" id="PluginNotDefinedError"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.project_loader.PluginNotDefinedError">[docs]</a><span class="k">class</span> <span class="nc">PluginNotDefinedError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">part</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_part</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">part</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_part</span> <span class="o">=</span> <span class="n">part</span></div>
+
+
+<div class="viewcode-block" id="Config"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.project_loader.Config">[docs]</a><span class="k">class</span> <span class="nc">Config</span><span class="p">:</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">part_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parts</span><span class="o">.</span><span class="n">part_names</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">all_parts</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parts</span><span class="o">.</span><span class="n">all_parts</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_remote_parts</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;_remote_parts_attr&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_remote_parts_attr</span> <span class="o">=</span> <span class="n">get_remote_parts</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_remote_parts_attr</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">project_options</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">project_options</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">project_options</span> <span class="o">=</span> <span class="n">snapcraft</span><span class="o">.</span><span class="n">ProjectOptions</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">build_tools</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span> <span class="o">=</span> <span class="n">project_options</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_snapcraft_yaml</span> <span class="o">=</span> <span class="n">get_snapcraft_yaml</span><span class="p">()</span>
+        <span class="n">snapcraft_yaml</span> <span class="o">=</span> <span class="n">_snapcraft_yaml_load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_snapcraft_yaml</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_validator</span> <span class="o">=</span> <span class="n">Validator</span><span class="p">(</span><span class="n">snapcraft_yaml</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_validator</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
+
+        <span class="n">snapcraft_yaml</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_process_remote_parts</span><span class="p">(</span><span class="n">snapcraft_yaml</span><span class="p">)</span>
+        <span class="n">snapcraft_yaml</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_expand_filesets</span><span class="p">(</span><span class="n">snapcraft_yaml</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_expand_env</span><span class="p">(</span><span class="n">snapcraft_yaml</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_no_duplicate_app_aliases</span><span class="p">()</span>
+
+        <span class="c1"># both confinement type and build quality are optionals</span>
+        <span class="n">_ensure_confinement_default</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validator</span><span class="o">.</span><span class="n">schema</span><span class="p">)</span>
+        <span class="n">_ensure_grade_default</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validator</span><span class="o">.</span><span class="n">schema</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">build_tools</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;build-packages&#39;</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">build_tools</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">project_options</span><span class="o">.</span><span class="n">additional_build_packages</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">parts</span> <span class="o">=</span> <span class="n">parts</span><span class="o">.</span><span class="n">PartsConfig</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                                       <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="p">,</span>
+                                       <span class="bp">self</span><span class="o">.</span><span class="n">_validator</span><span class="p">,</span>
+                                       <span class="bp">self</span><span class="o">.</span><span class="n">build_tools</span><span class="p">,</span>
+                                       <span class="bp">self</span><span class="o">.</span><span class="n">_snapcraft_yaml</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="s1">&#39;architectures&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;architectures&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="o">.</span><span class="n">deb_arch</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">_ensure_no_duplicate_app_aliases</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Prevent multiple apps within a snap from having duplicate alias names</span>
+        <span class="n">aliases</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">app_name</span><span class="p">,</span> <span class="n">app</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;apps&#39;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">aliases</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;aliases&#39;</span><span class="p">,</span> <span class="p">[]))</span>
+        <span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">duplicates</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">alias</span> <span class="ow">in</span> <span class="n">aliases</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">alias</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+                <span class="n">duplicates</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">alias</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">alias</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">duplicates</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">DuplicateAliasError</span><span class="p">(</span><span class="n">aliases</span><span class="o">=</span><span class="n">duplicates</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Config.get_project_state"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.project_loader.Config.get_project_state">[docs]</a>    <span class="k">def</span> <span class="nf">get_project_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">step</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns a dict of states for the given step of each part.&quot;&quot;&quot;</span>
+
+        <span class="n">state</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parts</span><span class="o">.</span><span class="n">all_parts</span><span class="p">:</span>
+            <span class="n">state</span><span class="p">[</span><span class="n">part</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">part</span><span class="o">.</span><span class="n">get_state</span><span class="p">(</span><span class="n">step</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">state</span></div>
+
+<div class="viewcode-block" id="Config.stage_env"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.project_loader.Config.stage_env">[docs]</a>    <span class="k">def</span> <span class="nf">stage_env</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">stage_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="o">.</span><span class="n">stage_dir</span>
+        <span class="n">core_dynamic_linker</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="o">.</span><span class="n">get_core_dynamic_linker</span><span class="p">()</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="n">env</span> <span class="o">+=</span> <span class="n">_runtime_env</span><span class="p">(</span><span class="n">stage_dir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="o">.</span><span class="n">arch_triplet</span><span class="p">)</span>
+        <span class="n">env</span> <span class="o">+=</span> <span class="n">_build_env_for_stage</span><span class="p">(</span>
+            <span class="n">stage_dir</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;confinement&#39;</span><span class="p">],</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="o">.</span><span class="n">arch_triplet</span><span class="p">,</span>
+            <span class="n">core_dynamic_linker</span><span class="o">=</span><span class="n">core_dynamic_linker</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parts</span><span class="o">.</span><span class="n">all_parts</span><span class="p">:</span>
+            <span class="n">env</span> <span class="o">+=</span> <span class="n">part</span><span class="o">.</span><span class="n">env</span><span class="p">(</span><span class="n">stage_dir</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">env</span></div>
+
+<div class="viewcode-block" id="Config.snap_env"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.project_loader.Config.snap_env">[docs]</a>    <span class="k">def</span> <span class="nf">snap_env</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">snap_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="o">.</span><span class="n">snap_dir</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="n">env</span> <span class="o">+=</span> <span class="n">_runtime_env</span><span class="p">(</span><span class="n">snap_dir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="o">.</span><span class="n">arch_triplet</span><span class="p">)</span>
+        <span class="n">dependency_paths</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parts</span><span class="o">.</span><span class="n">all_parts</span><span class="p">:</span>
+            <span class="n">env</span> <span class="o">+=</span> <span class="n">part</span><span class="o">.</span><span class="n">env</span><span class="p">(</span><span class="n">snap_dir</span><span class="p">)</span>
+            <span class="n">dependency_paths</span> <span class="o">|=</span> <span class="n">part</span><span class="o">.</span><span class="n">get_primed_dependency_paths</span><span class="p">()</span>
+
+        <span class="c1"># Dependency paths are only valid if they actually exist. Sorting them</span>
+        <span class="c1"># here as well so the LD_LIBRARY_PATH is consistent between runs.</span>
+        <span class="n">dependency_paths</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">({</span>
+            <span class="n">path</span> <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">dependency_paths</span> <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">path</span><span class="p">)})</span>
+
+        <span class="k">if</span> <span class="n">dependency_paths</span><span class="p">:</span>
+            <span class="c1"># Add more specific LD_LIBRARY_PATH from the dependencies.</span>
+            <span class="n">env</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;LD_LIBRARY_PATH=&quot;&#39;</span> <span class="o">+</span> <span class="s1">&#39;:&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dependency_paths</span><span class="p">)</span> <span class="o">+</span>
+                       <span class="s1">&#39;:$LD_LIBRARY_PATH&quot;&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">env</span></div>
+
+<div class="viewcode-block" id="Config.project_env"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.project_loader.Config.project_env">[docs]</a>    <span class="k">def</span> <span class="nf">project_env</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="s1">&#39;SNAPCRAFT_STAGE={}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="o">.</span><span class="n">stage_dir</span><span class="p">),</span>
+            <span class="s1">&#39;SNAPCRAFT_PROJECT_NAME={}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]),</span>
+            <span class="s1">&#39;SNAPCRAFT_PROJECT_VERSION={}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;version&#39;</span><span class="p">]),</span>
+        <span class="p">]</span></div>
+
+    <span class="k">def</span> <span class="nf">_expand_env</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snapcraft_yaml</span><span class="p">):</span>
+        <span class="n">environment_keys</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;version&#39;</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">snapcraft_yaml</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">any</span><span class="p">((</span><span class="n">key</span> <span class="o">==</span> <span class="n">env_key</span> <span class="k">for</span> <span class="n">env_key</span> <span class="ow">in</span> <span class="n">environment_keys</span><span class="p">)):</span>
+                <span class="k">continue</span>
+            <span class="n">snapcraft_yaml</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">replace_attr</span><span class="p">(</span>
+                <span class="n">snapcraft_yaml</span><span class="p">[</span><span class="n">key</span><span class="p">],</span>
+                <span class="p">[</span>
+                    <span class="p">(</span><span class="s1">&#39;$SNAPCRAFT_PROJECT_NAME&#39;</span><span class="p">,</span> <span class="n">snapcraft_yaml</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]),</span>
+                    <span class="p">(</span><span class="s1">&#39;$SNAPCRAFT_PROJECT_VERSION&#39;</span><span class="p">,</span> <span class="n">snapcraft_yaml</span><span class="p">[</span><span class="s1">&#39;version&#39;</span><span class="p">]),</span>
+                    <span class="p">(</span><span class="s1">&#39;$SNAPCRAFT_STAGE&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_project_options</span><span class="o">.</span><span class="n">stage_dir</span><span class="p">),</span>
+                <span class="p">])</span>
+        <span class="k">return</span> <span class="n">snapcraft_yaml</span>
+
+    <span class="k">def</span> <span class="nf">_expand_filesets</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snapcraft_yaml</span><span class="p">):</span>
+        <span class="n">parts</span> <span class="o">=</span> <span class="n">snapcraft_yaml</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;parts&#39;</span><span class="p">,</span> <span class="p">{})</span>
+
+        <span class="k">for</span> <span class="n">part_name</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">:</span>
+            <span class="c1"># FIXME: Remove `snap` from here; it&#39;s deprecated</span>
+            <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;stage&#39;</span><span class="p">,</span> <span class="s1">&#39;snap&#39;</span><span class="p">,</span> <span class="s1">&#39;prime&#39;</span><span class="p">):</span>
+                <span class="n">step_fileset</span> <span class="o">=</span> <span class="n">_expand_filesets_for</span><span class="p">(</span><span class="n">step</span><span class="p">,</span> <span class="n">parts</span><span class="p">[</span><span class="n">part_name</span><span class="p">])</span>
+                <span class="n">parts</span><span class="p">[</span><span class="n">part_name</span><span class="p">][</span><span class="n">step</span><span class="p">]</span> <span class="o">=</span> <span class="n">step_fileset</span>
+
+        <span class="k">return</span> <span class="n">snapcraft_yaml</span>
+
+    <span class="k">def</span> <span class="nf">_process_remote_parts</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snapcraft_yaml</span><span class="p">):</span>
+        <span class="n">parts</span> <span class="o">=</span> <span class="n">snapcraft_yaml</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;parts&#39;</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="n">new_parts</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">for</span> <span class="n">part_name</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s1">&#39;plugin&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">[</span><span class="n">part_name</span><span class="p">]:</span>
+                <span class="n">properties</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_remote_parts</span><span class="o">.</span><span class="n">compose</span><span class="p">(</span><span class="n">part_name</span><span class="p">,</span>
+                                                        <span class="n">parts</span><span class="p">[</span><span class="n">part_name</span><span class="p">])</span>
+                <span class="n">new_parts</span><span class="p">[</span><span class="n">part_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">properties</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">new_parts</span><span class="p">[</span><span class="n">part_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">parts</span><span class="p">[</span><span class="n">part_name</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+            <span class="n">after_parts</span> <span class="o">=</span> <span class="n">parts</span><span class="p">[</span><span class="n">part_name</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;after&#39;</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="n">after_remote_parts</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">after_parts</span> <span class="k">if</span> <span class="n">p</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">]</span>
+
+            <span class="k">for</span> <span class="n">after_part</span> <span class="ow">in</span> <span class="n">after_remote_parts</span><span class="p">:</span>
+                <span class="n">properties</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_remote_parts</span><span class="o">.</span><span class="n">get_part</span><span class="p">(</span><span class="n">after_part</span><span class="p">)</span>
+                <span class="n">new_parts</span><span class="p">[</span><span class="n">after_part</span><span class="p">]</span> <span class="o">=</span> <span class="n">properties</span>
+
+        <span class="n">snapcraft_yaml</span><span class="p">[</span><span class="s1">&#39;parts&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_parts</span>
+        <span class="k">return</span> <span class="n">snapcraft_yaml</span></div>
+
+
+<div class="viewcode-block" id="replace_attr"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.project_loader.replace_attr">[docs]</a><span class="k">def</span> <span class="nf">replace_attr</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">replacements</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">replacement</span> <span class="ow">in</span> <span class="n">replacements</span><span class="p">:</span>
+            <span class="n">attr</span> <span class="o">=</span> <span class="n">attr</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">replacement</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="nb">str</span><span class="p">(</span><span class="n">replacement</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+        <span class="k">return</span> <span class="n">attr</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">replace_attr</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">replacements</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">attr</span><span class="p">]</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">replace_attr</span><span class="p">(</span><span class="n">attr</span><span class="p">[</span><span class="n">k</span><span class="p">],</span> <span class="n">replacements</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">attr</span><span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">attr</span></div>
+
+
+<span class="k">def</span> <span class="nf">_runtime_env</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">arch_triplet</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Set the environment variables required for running binaries.&quot;&quot;&quot;</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">env</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;PATH=&quot;&#39;</span> <span class="o">+</span> <span class="s1">&#39;:&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span>
+        <span class="s1">&#39;{0}/usr/sbin&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;{0}/usr/bin&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;{0}/sbin&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;{0}/bin&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;$PATH&#39;</span>
+    <span class="p">])</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">root</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;&quot;&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Add the default LD_LIBRARY_PATH</span>
+    <span class="n">paths</span> <span class="o">=</span> <span class="n">common</span><span class="o">.</span><span class="n">get_library_paths</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">arch_triplet</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">paths</span><span class="p">:</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">formatting_utils</span><span class="o">.</span><span class="n">format_path_variable</span><span class="p">(</span>
+            <span class="s1">&#39;LD_LIBRARY_PATH&#39;</span><span class="p">,</span> <span class="n">paths</span><span class="p">,</span> <span class="n">prepend</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">separator</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">))</span>
+
+    <span class="c1"># Add more specific LD_LIBRARY_PATH from staged packages if necessary</span>
+    <span class="n">ld_library_paths</span> <span class="o">=</span> <span class="n">libraries</span><span class="o">.</span><span class="n">determine_ld_library_path</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">ld_library_paths</span><span class="p">:</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;LD_LIBRARY_PATH=&quot;&#39;</span> <span class="o">+</span> <span class="s1">&#39;:&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ld_library_paths</span><span class="p">)</span> <span class="o">+</span>
+                   <span class="s1">&#39;:$LD_LIBRARY_PATH&quot;&#39;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">env</span>
+
+
+<span class="k">def</span> <span class="nf">_build_env</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">,</span> <span class="n">confinement</span><span class="p">,</span> <span class="n">arch_triplet</span><span class="p">,</span>
+               <span class="n">core_dynamic_linker</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Set the environment variables required for building.</span>
+
+<span class="sd">    This is required for the current parts installdir due to stage-packages</span>
+<span class="sd">    and also to setup the stagedir.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">paths</span> <span class="o">=</span> <span class="n">common</span><span class="o">.</span><span class="n">get_include_paths</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">arch_triplet</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">paths</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">envvar</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;CPPFLAGS&#39;</span><span class="p">,</span> <span class="s1">&#39;CFLAGS&#39;</span><span class="p">,</span> <span class="s1">&#39;CXXFLAGS&#39;</span><span class="p">]:</span>
+            <span class="n">env</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">formatting_utils</span><span class="o">.</span><span class="n">format_path_variable</span><span class="p">(</span>
+                <span class="n">envvar</span><span class="p">,</span> <span class="n">paths</span><span class="p">,</span> <span class="n">prepend</span><span class="o">=</span><span class="s1">&#39;-I&#39;</span><span class="p">,</span> <span class="n">separator</span><span class="o">=</span><span class="s1">&#39; &#39;</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">confinement</span> <span class="o">==</span> <span class="s1">&#39;classic&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">core_dynamic_linker</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">EnvironmentError</span><span class="p">(</span>
+                <span class="s1">&#39;classic confinement requires the core snap to be installed. &#39;</span>
+                <span class="s1">&#39;Install it by running `snap install core`.&#39;</span><span class="p">)</span>
+
+        <span class="n">core_path</span> <span class="o">=</span> <span class="n">common</span><span class="o">.</span><span class="n">get_core_path</span><span class="p">()</span>
+        <span class="n">core_rpaths</span> <span class="o">=</span> <span class="n">common</span><span class="o">.</span><span class="n">get_library_paths</span><span class="p">(</span><span class="n">core_path</span><span class="p">,</span> <span class="n">arch_triplet</span><span class="p">,</span>
+                                               <span class="n">existing_only</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+        <span class="n">snap_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;/snap&#39;</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">,</span> <span class="s1">&#39;current&#39;</span><span class="p">)</span>
+        <span class="n">snap_rpaths</span> <span class="o">=</span> <span class="n">common</span><span class="o">.</span><span class="n">get_library_paths</span><span class="p">(</span><span class="n">snap_path</span><span class="p">,</span> <span class="n">arch_triplet</span><span class="p">,</span>
+                                               <span class="n">existing_only</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+        <span class="n">rpaths</span> <span class="o">=</span> <span class="n">formatting_utils</span><span class="o">.</span><span class="n">combine_paths</span><span class="p">(</span>
+            <span class="n">core_rpaths</span> <span class="o">+</span> <span class="n">snap_rpaths</span><span class="p">,</span> <span class="n">prepend</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">separator</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">)</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;LDFLAGS=&quot;$LDFLAGS &#39;</span>
+                   <span class="c1"># Building tools to continue the build becomes problematic</span>
+                   <span class="c1"># with nodefaultlib.</span>
+                   <span class="s1">&#39;-Wl,-z,nodefaultlib &#39;</span>
+                   <span class="s1">&#39;-Wl,--dynamic-linker={0} &#39;</span>
+                   <span class="s1">&#39;-Wl,-rpath,{1}&quot;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">core_dynamic_linker</span><span class="p">,</span> <span class="n">rpaths</span><span class="p">))</span>
+
+    <span class="n">paths</span> <span class="o">=</span> <span class="n">common</span><span class="o">.</span><span class="n">get_library_paths</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">arch_triplet</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">paths</span><span class="p">:</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">formatting_utils</span><span class="o">.</span><span class="n">format_path_variable</span><span class="p">(</span>
+            <span class="s1">&#39;LDFLAGS&#39;</span><span class="p">,</span> <span class="n">paths</span><span class="p">,</span> <span class="n">prepend</span><span class="o">=</span><span class="s1">&#39;-L&#39;</span><span class="p">,</span> <span class="n">separator</span><span class="o">=</span><span class="s1">&#39; &#39;</span><span class="p">))</span>
+
+    <span class="n">paths</span> <span class="o">=</span> <span class="n">common</span><span class="o">.</span><span class="n">get_pkg_config_paths</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">arch_triplet</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">paths</span><span class="p">:</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">formatting_utils</span><span class="o">.</span><span class="n">format_path_variable</span><span class="p">(</span>
+            <span class="s1">&#39;PKG_CONFIG_PATH&#39;</span><span class="p">,</span> <span class="n">paths</span><span class="p">,</span> <span class="n">prepend</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">separator</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">env</span>
+
+
+<span class="k">def</span> <span class="nf">_build_env_for_stage</span><span class="p">(</span><span class="n">stagedir</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">,</span> <span class="n">confinement</span><span class="p">,</span>
+                         <span class="n">arch_triplet</span><span class="p">,</span> <span class="n">core_dynamic_linker</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">_build_env</span><span class="p">(</span><span class="n">stagedir</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">,</span> <span class="n">confinement</span><span class="p">,</span>
+                     <span class="n">arch_triplet</span><span class="p">,</span> <span class="n">core_dynamic_linker</span><span class="p">)</span>
+    <span class="n">env</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;PERL5LIB={0}/usr/share/perl5/&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">stagedir</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">env</span>
+
+
+<div class="viewcode-block" id="get_snapcraft_yaml"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.project_loader.get_snapcraft_yaml">[docs]</a><span class="k">def</span> <span class="nf">get_snapcraft_yaml</span><span class="p">():</span>
+    <span class="n">possible_yamls</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;snap&#39;</span><span class="p">,</span> <span class="s1">&#39;snapcraft.yaml&#39;</span><span class="p">),</span>
+        <span class="s1">&#39;snapcraft.yaml&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;.snapcraft.yaml&#39;</span><span class="p">,</span>
+    <span class="p">]</span>
+
+    <span class="n">snapcraft_yamls</span> <span class="o">=</span> <span class="p">[</span><span class="n">y</span> <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">possible_yamls</span> <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">y</span><span class="p">)]</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">snapcraft_yamls</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">SnapcraftYamlFileError</span><span class="p">(</span><span class="s1">&#39;snap/snapcraft.yaml&#39;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">snapcraft_yamls</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">SnapcraftEnvironmentError</span><span class="p">(</span>
+            <span class="s1">&#39;Found a {!r} and a {!r}, please remove one.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">snapcraft_yamls</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">snapcraft_yamls</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+
+    <span class="k">return</span> <span class="n">snapcraft_yamls</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span></div>
+
+
+<span class="k">def</span> <span class="nf">_snapcraft_yaml_load</span><span class="p">(</span><span class="n">yaml_file</span><span class="p">):</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">yaml_file</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fp</span><span class="p">:</span>
+        <span class="n">bs</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">bs</span> <span class="o">==</span> <span class="n">codecs</span><span class="o">.</span><span class="n">BOM_UTF16_LE</span> <span class="ow">or</span> <span class="n">bs</span> <span class="o">==</span> <span class="n">codecs</span><span class="o">.</span><span class="n">BOM_UTF16_BE</span><span class="p">:</span>
+        <span class="n">encoding</span> <span class="o">=</span> <span class="s1">&#39;utf-16&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">encoding</span> <span class="o">=</span> <span class="s1">&#39;utf-8&#39;</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">yaml_file</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="n">encoding</span><span class="p">)</span> <span class="k">as</span> <span class="n">fp</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">yaml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fp</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">yaml</span><span class="o">.</span><span class="n">scanner</span><span class="o">.</span><span class="n">ScannerError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">SnapcraftSchemaError</span><span class="p">(</span>
+            <span class="s1">&#39;{} on line {} of {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">e</span><span class="o">.</span><span class="n">problem</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">problem_mark</span><span class="o">.</span><span class="n">line</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">yaml_file</span><span class="p">))</span>
+
+
+<div class="viewcode-block" id="load_config"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.project_loader.load_config">[docs]</a><span class="k">def</span> <span class="nf">load_config</span><span class="p">(</span><span class="n">project_options</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Config</span><span class="p">(</span><span class="n">project_options</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">SnapcraftYamlFileError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+            <span class="s2">&quot;Could not find {}. Are you sure you&#39;re in the right directory?</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="s2">&quot;To start a new project, use &#39;snapcraft init&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">file</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">errors</span><span class="o">.</span><span class="n">SnapcraftSchemaError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;Issues while validating snapcraft.yaml: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">message</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">PluginNotDefinedError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+            <span class="s1">&#39;Issues while validating snapcraft.yaml: the &quot;plugin&quot; keyword is &#39;</span>
+            <span class="s1">&#39;missing for the &quot;{}&quot; part.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">part</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">parts</span><span class="o">.</span><span class="n">SnapcraftLogicError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">&#39;Issue detected while analyzing &#39;</span>
+                     <span class="s1">&#39;snapcraft.yaml: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">message</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">pluginhandler</span><span class="o">.</span><span class="n">PluginError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">&#39;Issue while loading plugin: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">_ensure_confinement_default</span><span class="p">(</span><span class="n">yaml_data</span><span class="p">,</span> <span class="n">schema</span><span class="p">):</span>
+    <span class="c1"># Provide hint if the confinement property is missing, and add the</span>
+    <span class="c1"># default. We use the schema here so we don&#39;t have to hard-code defaults.</span>
+    <span class="k">if</span> <span class="s1">&#39;confinement&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">yaml_data</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;&quot;confinement&quot; property not specified: defaulting &#39;</span>
+                       <span class="s1">&#39;to &quot;strict&quot;&#39;</span><span class="p">)</span>
+        <span class="n">yaml_data</span><span class="p">[</span><span class="s1">&#39;confinement&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;confinement&#39;</span><span class="p">][</span><span class="s1">&#39;default&#39;</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">_ensure_grade_default</span><span class="p">(</span><span class="n">yaml_data</span><span class="p">,</span> <span class="n">schema</span><span class="p">):</span>
+    <span class="c1"># Provide hint if the grade property is missing, and add the</span>
+    <span class="c1"># default. We use the schema here so we don&#39;t have to hard-code defaults.</span>
+    <span class="k">if</span> <span class="s1">&#39;grade&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">yaml_data</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;&quot;grade&quot; property not specified: defaulting &#39;</span>
+                       <span class="s1">&#39;to &quot;stable&quot;&#39;</span><span class="p">)</span>
+        <span class="n">yaml_data</span><span class="p">[</span><span class="s1">&#39;grade&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;grade&#39;</span><span class="p">][</span><span class="s1">&#39;default&#39;</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">_expand_filesets_for</span><span class="p">(</span><span class="n">step</span><span class="p">,</span> <span class="n">properties</span><span class="p">):</span>
+    <span class="n">filesets</span> <span class="o">=</span> <span class="n">properties</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;filesets&#39;</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="n">fileset_for_step</span> <span class="o">=</span> <span class="n">properties</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">step</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="n">new_step_set</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">fileset_for_step</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;$&#39;</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">new_step_set</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">filesets</span><span class="p">[</span><span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">:]])</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">SnapcraftLogicError</span><span class="p">(</span>
+                    <span class="s1">&#39;</span><span class="se">\&#39;</span><span class="s1">{}</span><span class="se">\&#39;</span><span class="s1"> referred to in the </span><span class="se">\&#39;</span><span class="s1">{}</span><span class="se">\&#39;</span><span class="s1"> fileset but it is not &#39;</span>
+                    <span class="s1">&#39;in filesets&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">step</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">new_step_set</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">new_step_set</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  <li><a href="../../snapcraft.html">snapcraft</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

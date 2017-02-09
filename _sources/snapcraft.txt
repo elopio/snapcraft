@@ -1,0 +1,81 @@
+snapcraft package
+=================
+
+Subpackages
+-----------
+
+.. toctree::
+
+    snapcraft.integrations
+    snapcraft.internal
+    snapcraft.plugins
+    snapcraft.storeapi
+    snapcraft.tests
+
+Submodules
+----------
+
+snapcraft.common module
+-----------------------
+
+.. automodule:: snapcraft.common
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.config module
+-----------------------
+
+.. automodule:: snapcraft.config
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.file_utils module
+---------------------------
+
+.. automodule:: snapcraft.file_utils
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.formatting_utils module
+---------------------------------
+
+.. automodule:: snapcraft.formatting_utils
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.main module
+---------------------
+
+.. automodule:: snapcraft.main
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.shell_utils module
+----------------------------
+
+.. automodule:: snapcraft.shell_utils
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.sources module
+------------------------
+
+.. automodule:: snapcraft.sources
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Module contents
+---------------
+
+.. automodule:: snapcraft
+    :members:
+    :undoc-members:
+    :show-inheritance:

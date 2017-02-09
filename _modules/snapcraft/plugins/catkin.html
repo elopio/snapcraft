@@ -1,0 +1,778 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.plugins.catkin &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../../index.html" />
+    <link rel="up" title="snapcraft" href="../../snapcraft.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.plugins.catkin</h1><div class="highlight"><pre>
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2015-2016 Canonical Ltd</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="sd">&quot;&quot;&quot;The catkin plugin is useful for building ROS parts.</span>
+
+<span class="sd">This plugin uses the common plugin keywords as well as those for &quot;sources&quot;.</span>
+<span class="sd">For more information check the &#39;plugins&#39; topic for the former and the</span>
+<span class="sd">&#39;sources&#39; topic for the latter.</span>
+
+<span class="sd">Additionally, this plugin uses the following plugin-specific keywords:</span>
+
+<span class="sd">    - catkin-packages:</span>
+<span class="sd">      (list of strings)</span>
+<span class="sd">      List of catkin packages to build.</span>
+<span class="sd">    - source-space:</span>
+<span class="sd">      (string)</span>
+<span class="sd">      The source space containing Catkin packages. By default this is &#39;src&#39;.</span>
+<span class="sd">    - rosdistro:</span>
+<span class="sd">      (string)</span>
+<span class="sd">      The ROS distro required by this system. Defaults to &#39;indigo&#39;.</span>
+<span class="sd">    - include-roscore:</span>
+<span class="sd">      (boolean)</span>
+<span class="sd">      Whether or not to include roscore with the part. Defaults to true.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">contextlib</span>
+<span class="kn">import</span> <span class="nn">glob</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">tempfile</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">shutil</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">textwrap</span>
+
+<span class="kn">import</span> <span class="nn">snapcraft</span>
+<span class="kn">from</span> <span class="nn">snapcraft</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">common</span><span class="p">,</span>
+    <span class="n">file_utils</span><span class="p">,</span>
+    <span class="n">formatting_utils</span><span class="p">,</span>
+    <span class="n">repo</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+<span class="c1"># Map ROS releases to Ubuntu releases</span>
+<span class="n">_ROS_RELEASE_MAP</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;indigo&#39;</span><span class="p">:</span> <span class="s1">&#39;trusty&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;jade&#39;</span><span class="p">:</span> <span class="s1">&#39;trusty&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;kinetic&#39;</span><span class="p">:</span> <span class="s1">&#39;xenial&#39;</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="CatkinPlugin"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.catkin.CatkinPlugin">[docs]</a><span class="k">class</span> <span class="nc">CatkinPlugin</span><span class="p">(</span><span class="n">snapcraft</span><span class="o">.</span><span class="n">BasePlugin</span><span class="p">):</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="CatkinPlugin.schema"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.catkin.CatkinPlugin.schema">[docs]</a>    <span class="k">def</span> <span class="nf">schema</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">schema</span><span class="p">()</span>
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;rosdistro&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;indigo&#39;</span>
+        <span class="p">}</span>
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;catkin-packages&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;array&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;minitems&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s1">&#39;uniqueItems&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+            <span class="s1">&#39;items&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span>
+            <span class="p">},</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="p">}</span>
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;source-space&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;src&#39;</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="c1"># The default is true since we expect most Catkin packages to be ROS</span>
+        <span class="c1"># packages. The only reason one wouldn&#39;t want to include ROS in the</span>
+        <span class="c1"># snap is if library snaps exist, which will still likely be the</span>
+        <span class="c1"># minority.</span>
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;include-roscore&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;boolean&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;true&#39;</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;required&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;catkin-packages&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">schema</span></div>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="CatkinPlugin.get_pull_properties"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.catkin.CatkinPlugin.get_pull_properties">[docs]</a>    <span class="k">def</span> <span class="nf">get_pull_properties</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="c1"># Inform Snapcraft of the properties associated with pulling. If these</span>
+        <span class="c1"># change in the YAML Snapcraft will consider the pull step dirty.</span>
+        <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;rosdistro&#39;</span><span class="p">,</span> <span class="s1">&#39;catkin-packages&#39;</span><span class="p">,</span> <span class="s1">&#39;source-space&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;include-roscore&#39;</span><span class="p">]</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">PLUGIN_STAGE_SOURCES</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">deb http://packages.ros.org/ros/ubuntu/ {0} main</span>
+<span class="s2">deb http://${{prefix}}.ubuntu.com/${{suffix}}/ {0} main universe</span>
+<span class="s2">deb http://${{prefix}}.ubuntu.com/${{suffix}}/ {0}-updates main universe</span>
+<span class="s2">deb http://${{prefix}}.ubuntu.com/${{suffix}}/ {0}-security main universe</span>
+<span class="s2">deb http://${{security}}.ubuntu.com/${{suffix}} {0}-security main universe</span>
+<span class="s2">&quot;&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">_ROS_RELEASE_MAP</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">rosdistro</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">options</span><span class="p">,</span> <span class="n">project</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">options</span><span class="p">,</span> <span class="n">project</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">build_packages</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s1">&#39;libc6-dev&#39;</span><span class="p">,</span> <span class="s1">&#39;make&#39;</span><span class="p">])</span>
+
+        <span class="c1"># Get a unique set of packages</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">catkin_packages</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">options</span><span class="o">.</span><span class="n">catkin_packages</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">partdir</span><span class="p">,</span> <span class="s1">&#39;rosdep&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_compilers_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">partdir</span><span class="p">,</span> <span class="s1">&#39;compilers&#39;</span><span class="p">)</span>
+
+        <span class="c1"># The path created via the `source` key (or a combination of `source`</span>
+        <span class="c1"># and `source-subdir` keys) needs to point to a valid Catkin workspace</span>
+        <span class="c1"># containing another subdirectory called the &quot;source space.&quot; By</span>
+        <span class="c1"># default, this is a directory named &quot;src,&quot; but it can be remapped via</span>
+        <span class="c1"># the `source-space` key. It&#39;s important that the source space is not</span>
+        <span class="c1"># the root of the Catkin workspace, since Catkin won&#39;t work that way</span>
+        <span class="c1"># and it&#39;ll create a circular link that causes rosdep to hang.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">source_subdir</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_ros_package_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sourcedir</span><span class="p">,</span>
+                                                  <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">source_subdir</span><span class="p">,</span>
+                                                  <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">source_space</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_ros_package_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sourcedir</span><span class="p">,</span>
+                                                  <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">source_space</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sourcedir</span><span class="p">)</span> <span class="o">==</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_ros_package_path</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="s1">&#39;source-space cannot be the root of the Catkin workspace&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Validate selected ROS distro</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">rosdistro</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_ROS_RELEASE_MAP</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="s1">&#39;Unsupported rosdistro: {!r}. The supported ROS distributions &#39;</span>
+                <span class="s1">&#39;are {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">rosdistro</span><span class="p">,</span>
+                    <span class="n">formatting_utils</span><span class="o">.</span><span class="n">humanize_list</span><span class="p">(</span>
+                        <span class="n">_ROS_RELEASE_MAP</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="s1">&#39;and&#39;</span><span class="p">)))</span>
+
+<div class="viewcode-block" id="CatkinPlugin.env"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.catkin.CatkinPlugin.env">[docs]</a>    <span class="k">def</span> <span class="nf">env</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Runtime environment for ROS binaries and services.&quot;&quot;&quot;</span>
+
+        <span class="n">env</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="c1"># This environment variable tells ROS nodes where to find ROS</span>
+            <span class="c1"># master. It does not affect ROS master, however-- this is just the</span>
+            <span class="c1"># default URI.</span>
+            <span class="s1">&#39;ROS_MASTER_URI=http://localhost:11311&#39;</span><span class="p">,</span>
+
+            <span class="c1"># Various ROS tools (e.g. rospack, roscore) keep a cache or a log,</span>
+            <span class="c1"># and use $ROS_HOME to determine where to put them.</span>
+            <span class="s1">&#39;ROS_HOME=$SNAP_USER_DATA/ros&#39;</span><span class="p">,</span>
+
+            <span class="c1"># FIXME: LP: #1576411 breaks ROS snaps on the desktop, so we&#39;ll</span>
+            <span class="c1"># temporarily work around that bug by forcing the locale to</span>
+            <span class="c1"># C.UTF-8.</span>
+            <span class="s1">&#39;LC_ALL=C.UTF-8&#39;</span><span class="p">,</span>
+
+            <span class="c1"># This environment variable points to where the setup.sh and</span>
+            <span class="c1"># _setup_util.py files are located. This is required at both build-</span>
+            <span class="c1"># and run-time.</span>
+            <span class="s1">&#39;_CATKIN_SETUP_DIR={}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                <span class="n">root</span><span class="p">,</span> <span class="s1">&#39;opt&#39;</span><span class="p">,</span> <span class="s1">&#39;ros&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">rosdistro</span><span class="p">)),</span>
+        <span class="p">]</span>
+
+        <span class="c1"># There&#39;s a chicken and egg problem here, everything run get&#39;s an</span>
+        <span class="c1"># env built, even package installation, so the first runs for these</span>
+        <span class="c1"># will likely fail.</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># The ROS packaging system tools (e.g. rospkg, etc.) don&#39;t go</span>
+            <span class="c1"># into the ROS install path (/opt/ros/$distro), so we need the</span>
+            <span class="c1"># PYTHONPATH to include the dist-packages in /usr/lib as well.</span>
+            <span class="n">env</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;PYTHONPATH={0}:$PYTHONPATH&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">common</span><span class="o">.</span><span class="n">get_python2_path</span><span class="p">(</span><span class="n">root</span><span class="p">)))</span>
+        <span class="k">except</span> <span class="ne">EnvironmentError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+
+        <span class="c1"># The setup.sh we source below requires the in-snap python. Here we</span>
+        <span class="c1"># make sure it&#39;s in the PATH before it&#39;s run.</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;PATH=$PATH:{}/usr/bin&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">root</span><span class="p">))</span>
+
+        <span class="c1"># We need to source ROS&#39;s setup.sh at this point. However, it accepts</span>
+        <span class="c1"># arguments (thus will parse $@), and we really don&#39;t want it to, since</span>
+        <span class="c1"># $@ in this context will be meant for the app being launched</span>
+        <span class="c1"># (LP: #1660852). So we&#39;ll backup all args, source the setup.sh, then</span>
+        <span class="c1"># restore all args for the wrapper&#39;s `exec` line.</span>
+        <span class="n">script</span> <span class="o">=</span> <span class="n">textwrap</span><span class="o">.</span><span class="n">dedent</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">        if [ -e {0} ]; then</span>
+<span class="s1">            # Shell quote arbitrary string by replacing every occurrence of &#39;</span>
+<span class="s1">            # with &#39;</span><span class="se">\\</span><span class="s1">&#39;&#39;, then put &#39; at the beginning and end of the string.</span>
+<span class="s1">            # Prepare yourself, fun regex ahead.</span>
+<span class="s1">            quote()</span>
+<span class="s1">            {{</span>
+<span class="s1">                for i; do</span>
+<span class="s1">                    printf </span><span class="si">%s</span><span class="se">\\\\</span><span class="s1">n &quot;$i&quot; | sed &quot;s/</span><span class="se">\&#39;</span><span class="s1">/</span><span class="se">\&#39;\\\\\\\\\&#39;\&#39;</span><span class="s1">/g;1s/^/</span><span class="se">\&#39;</span><span class="s1">/;\$s/\$/</span><span class="se">\&#39;</span><span class="s1"> </span><span class="se">\\\\\\\\</span><span class="s1">/&quot;</span>
+<span class="s1">                done</span>
+<span class="s1">                echo &quot; &quot;</span>
+<span class="s1">            }}</span>
+
+<span class="s1">            BACKUP_ARGS=$(quote &quot;$@&quot;)</span>
+<span class="s1">            set --</span>
+<span class="s1">            . {0}</span>
+<span class="s1">            eval &quot;set -- $BACKUP_ARGS&quot;</span>
+<span class="s1">        fi</span>
+<span class="s1">        &#39;&#39;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>  <span class="c1"># noqa</span>
+            <span class="n">root</span><span class="p">,</span> <span class="s1">&#39;opt&#39;</span><span class="p">,</span> <span class="s1">&#39;ros&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">rosdistro</span><span class="p">,</span> <span class="s1">&#39;setup.sh&#39;</span><span class="p">)))</span>
+
+        <span class="c1"># Each of these lines is prepended with an `export` when the</span>
+        <span class="c1"># environment is actually generated. In order to inject real shell code</span>
+        <span class="c1"># we have to hack it in by appending it on the end of an item in the</span>
+        <span class="c1"># environment. FIXME: There should be a better way to do this.</span>
+        <span class="n">env</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">env</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">script</span>
+
+        <span class="k">return</span> <span class="n">env</span></div>
+
+<div class="viewcode-block" id="CatkinPlugin.pull"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.catkin.CatkinPlugin.pull">[docs]</a>    <span class="k">def</span> <span class="nf">pull</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Copy source into build directory and fetch dependencies.</span>
+
+<span class="sd">        Catkin packages can specify their system dependencies in their</span>
+<span class="sd">        package.xml. In order to support that, the Catkin packages are</span>
+<span class="sd">        interrogated for their dependencies here. Since `stage-packages` are</span>
+<span class="sd">        already installed by the time this function is run, the dependencies</span>
+<span class="sd">        from the package.xml are pulled down explicitly.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">pull</span><span class="p">()</span>
+
+        <span class="c1"># Make sure the package path exists before continuing</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ros_package_path</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">FileNotFoundError</span><span class="p">(</span>
+                <span class="s1">&#39;Unable to find package path: &quot;{}&quot;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_ros_package_path</span><span class="p">))</span>
+
+        <span class="c1"># Pull our own compilers so we use ones that match up with the version</span>
+        <span class="c1"># of ROS we&#39;re using.</span>
+        <span class="n">compilers</span> <span class="o">=</span> <span class="n">_Compilers</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_compilers_path</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">PLUGIN_STAGE_SOURCES</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="p">)</span>
+        <span class="n">compilers</span><span class="o">.</span><span class="n">setup</span><span class="p">()</span>
+
+        <span class="c1"># Use rosdep for dependency detection and resolution</span>
+        <span class="n">rosdep</span> <span class="o">=</span> <span class="n">_Rosdep</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">rosdistro</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ros_package_path</span><span class="p">,</span>
+                         <span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_path</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">PLUGIN_STAGE_SOURCES</span><span class="p">,</span>
+                         <span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="p">)</span>
+        <span class="n">rosdep</span><span class="o">.</span><span class="n">setup</span><span class="p">()</span>
+
+        <span class="c1"># Parse the Catkin packages to pull out their system dependencies</span>
+        <span class="n">system_dependencies</span> <span class="o">=</span> <span class="n">_find_system_dependencies</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">catkin_packages</span><span class="p">,</span>
+                                                        <span class="n">rosdep</span><span class="p">)</span>
+
+        <span class="c1"># If the package requires roscore, resolve it into a system dependency</span>
+        <span class="c1"># as well.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">include_roscore</span><span class="p">:</span>
+            <span class="n">roscore_dependency</span> <span class="o">=</span> <span class="n">rosdep</span><span class="o">.</span><span class="n">resolve_dependency</span><span class="p">(</span><span class="s1">&#39;ros_core&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">roscore_dependency</span><span class="p">:</span>
+                <span class="n">system_dependencies</span> <span class="o">|=</span> <span class="nb">set</span><span class="p">(</span><span class="n">roscore_dependency</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="s1">&#39;Unable to determine system dependency for roscore&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Pull down and install any system dependencies that were discovered</span>
+        <span class="k">if</span> <span class="n">system_dependencies</span><span class="p">:</span>
+            <span class="n">ubuntudir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">partdir</span><span class="p">,</span> <span class="s1">&#39;ubuntu&#39;</span><span class="p">)</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">ubuntudir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Preparing to fetch package dependencies...&#39;</span><span class="p">)</span>
+            <span class="n">ubuntu</span> <span class="o">=</span> <span class="n">repo</span><span class="o">.</span><span class="n">Ubuntu</span><span class="p">(</span>
+                <span class="n">ubuntudir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="p">,</span>
+                <span class="n">sources</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">PLUGIN_STAGE_SOURCES</span><span class="p">,</span>
+                <span class="n">project_options</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="p">)</span>
+
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Fetching package dependencies...&#39;</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">ubuntu</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">system_dependencies</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">repo</span><span class="o">.</span><span class="n">PackageNotFoundError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="s1">&#39;Failed to fetch system dependencies: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="n">e</span><span class="o">.</span><span class="n">message</span><span class="p">))</span>
+
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Installing package dependencies...&#39;</span><span class="p">)</span>
+            <span class="n">ubuntu</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="CatkinPlugin.clean_pull"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.catkin.CatkinPlugin.clean_pull">[docs]</a>    <span class="k">def</span> <span class="nf">clean_pull</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">clean_pull</span><span class="p">()</span>
+
+        <span class="c1"># Remove the rosdep path, if any</span>
+        <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">suppress</span><span class="p">(</span><span class="n">FileNotFoundError</span><span class="p">):</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_path</span><span class="p">)</span>
+
+        <span class="c1"># Remove the compilers path, if any</span>
+        <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">suppress</span><span class="p">(</span><span class="n">FileNotFoundError</span><span class="p">):</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_compilers_path</span><span class="p">)</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">rosdir</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="s1">&#39;opt&#39;</span><span class="p">,</span> <span class="s1">&#39;ros&#39;</span><span class="p">,</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">rosdistro</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_run_in_bash</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">commandlist</span><span class="p">,</span> <span class="n">cwd</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">NamedTemporaryFile</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;set -ex</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;exec {}</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">commandlist</span><span class="p">)))</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s1">&#39;/bin/bash&#39;</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="p">],</span> <span class="n">cwd</span><span class="o">=</span><span class="n">cwd</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">)</span>
+
+<div class="viewcode-block" id="CatkinPlugin.build"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.catkin.CatkinPlugin.build">[docs]</a>    <span class="k">def</span> <span class="nf">build</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Build Catkin packages.</span>
+
+<span class="sd">        This function runs some pre-build steps to prepare the sources for</span>
+<span class="sd">        building in the Snapcraft environment, builds the packages via</span>
+<span class="sd">        catkin_make_isolated, and finally runs some post-build clean steps</span>
+<span class="sd">        to prepare the newly-minted install to be packaged as a .snap.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">build</span><span class="p">()</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Preparing to build Catkin packages...&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_prepare_build</span><span class="p">()</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Building Catkin packages...&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_build_catkin_packages</span><span class="p">()</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Cleaning up newly installed Catkin packages...&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_finish_build</span><span class="p">()</span></div>
+
+    <span class="k">def</span> <span class="nf">_prepare_build</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_use_in_snap_python</span><span class="p">()</span>
+
+        <span class="c1"># Each Catkin package distributes .cmake files so they can be found via</span>
+        <span class="c1"># find_package(). However, the Ubuntu packages pulled down as</span>
+        <span class="c1"># dependencies contain .cmake files pointing to system paths (e.g.</span>
+        <span class="c1"># /usr/lib, /usr/include, etc.). They need to be rewritten to point to</span>
+        <span class="c1"># the install directory.</span>
+        <span class="k">def</span> <span class="nf">rewrite_paths</span><span class="p">(</span><span class="n">match</span><span class="p">):</span>
+            <span class="n">paths</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;;&#39;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">path</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">paths</span><span class="p">):</span>
+                <span class="c1"># Rewrite this path if it&#39;s an absolute path and not already</span>
+                <span class="c1"># within the install directory.</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isabs</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="ow">and</span>
+                        <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">)):</span>
+                    <span class="n">paths</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">installdir</span> <span class="o">+</span> <span class="n">path</span>
+
+            <span class="k">return</span> <span class="s1">&#39;&quot;&#39;</span> <span class="o">+</span> <span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">paths</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;&quot;&#39;</span>
+
+        <span class="c1"># Looking for any path-like string</span>
+        <span class="n">file_utils</span><span class="o">.</span><span class="n">replace_in_file</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rosdir</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;.*Config.cmake$&#39;</span><span class="p">),</span>
+                                   <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;&quot;(.*?/.*?)&quot;&#39;</span><span class="p">),</span>
+                                   <span class="n">rewrite_paths</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_finish_build</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_use_in_snap_python</span><span class="p">()</span>
+
+        <span class="c1"># Replace the CMAKE_PREFIX_PATH in _setup_util.sh</span>
+        <span class="n">setup_util_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rosdir</span><span class="p">,</span> <span class="s1">&#39;_setup_util.py&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">setup_util_file</span><span class="p">):</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">setup_util_file</span><span class="p">,</span> <span class="s1">&#39;r+&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">pattern</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s2">r&quot;CMAKE_PREFIX_PATH = &#39;{}.*&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">rosdir</span><span class="p">))</span>
+                <span class="n">replaced</span> <span class="o">=</span> <span class="n">pattern</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s1">&#39;CMAKE_PREFIX_PATH = []&#39;</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">truncate</span><span class="p">()</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">replaced</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_use_in_snap_python</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Fix all shebangs to use the in-snap python.</span>
+        <span class="n">file_utils</span><span class="o">.</span><span class="n">replace_in_file</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rosdir</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;&#39;</span><span class="p">),</span>
+                                   <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;^#!.*python&#39;</span><span class="p">),</span>
+                                   <span class="s1">r&#39;#!/usr/bin/env python&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Also replace the python usage in 10.ros.sh to use the in-snap python.</span>
+        <span class="n">ros10_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rosdir</span><span class="p">,</span>
+                                  <span class="s1">&#39;etc/catkin/profile.d/10.ros.sh&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">ros10_file</span><span class="p">):</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">ros10_file</span><span class="p">,</span> <span class="s1">&#39;r+&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">pattern</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;/usr/bin/python&#39;</span><span class="p">)</span>
+                <span class="n">replaced</span> <span class="o">=</span> <span class="n">pattern</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s1">r&#39;python&#39;</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">truncate</span><span class="p">()</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">replaced</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_build_catkin_packages</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Nothing to do if no packages were specified</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">catkin_packages</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="n">catkincmd</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;catkin_make_isolated&#39;</span><span class="p">]</span>
+
+        <span class="c1"># Install the package</span>
+        <span class="n">catkincmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--install&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Specify the packages to be built</span>
+        <span class="n">catkincmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--pkg&#39;</span><span class="p">)</span>
+        <span class="n">catkincmd</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">catkin_packages</span><span class="p">)</span>
+
+        <span class="c1"># Don&#39;t clutter the real ROS workspace-- use the Snapcraft build</span>
+        <span class="c1"># directory</span>
+        <span class="n">catkincmd</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s1">&#39;--directory&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">builddir</span><span class="p">])</span>
+
+        <span class="c1"># Account for a non-default source space by always specifying it</span>
+        <span class="n">catkincmd</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s1">&#39;--source-space&#39;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">builddir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">source_space</span><span class="p">)])</span>
+
+        <span class="c1"># Specify that the package should be installed along with the rest of</span>
+        <span class="c1"># the ROS distro.</span>
+        <span class="n">catkincmd</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s1">&#39;--install-space&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rosdir</span><span class="p">])</span>
+
+        <span class="c1"># All the arguments that follow are meant for CMake</span>
+        <span class="n">catkincmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--cmake-args&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Make sure we&#39;re using our own compilers (the one on the system may</span>
+        <span class="c1"># be the wrong version).</span>
+        <span class="n">compilers</span> <span class="o">=</span> <span class="n">_Compilers</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_compilers_path</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">PLUGIN_STAGE_SOURCES</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="p">)</span>
+        <span class="n">catkincmd</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span>
+            <span class="s1">&#39;-DCMAKE_C_FLAGS=&quot;$CFLAGS {}&quot;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">compilers</span><span class="o">.</span><span class="n">cflags</span><span class="p">),</span>
+            <span class="s1">&#39;-DCMAKE_CXX_FLAGS=&quot;$CPPFLAGS {}&quot;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">compilers</span><span class="o">.</span><span class="n">cxxflags</span><span class="p">),</span>
+            <span class="s1">&#39;-DCMAKE_LD_FLAGS=&quot;$LDFLAGS {}&quot;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">compilers</span><span class="o">.</span><span class="n">ldflags</span><span class="p">),</span>
+            <span class="s1">&#39;-DCMAKE_C_COMPILER={}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">compilers</span><span class="o">.</span><span class="n">c_compiler_path</span><span class="p">),</span>
+            <span class="s1">&#39;-DCMAKE_CXX_COMPILER={}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">compilers</span><span class="o">.</span><span class="n">cxx_compiler_path</span><span class="p">)</span>
+        <span class="p">])</span>
+
+        <span class="c1"># This command must run in bash due to a bug in Catkin that causes it</span>
+        <span class="c1"># to explode if there are spaces in the cmake args (which there are).</span>
+        <span class="c1"># This has been fixed in Catkin Tools... perhaps we should be using</span>
+        <span class="c1"># that instead.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_run_in_bash</span><span class="p">(</span><span class="n">catkincmd</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="n">compilers</span><span class="o">.</span><span class="n">environment</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">_find_system_dependencies</span><span class="p">(</span><span class="n">catkin_packages</span><span class="p">,</span> <span class="n">rosdep</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Find system dependencies for a given set of Catkin packages.&quot;&quot;&quot;</span>
+
+    <span class="n">system_dependencies</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Determining system dependencies for Catkin packages...&#39;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">package</span> <span class="ow">in</span> <span class="n">catkin_packages</span><span class="p">:</span>
+        <span class="c1"># Query rosdep for the list of dependencies for this package</span>
+        <span class="n">dependencies</span> <span class="o">=</span> <span class="n">rosdep</span><span class="o">.</span><span class="n">get_dependencies</span><span class="p">(</span><span class="n">package</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">dependency</span> <span class="ow">in</span> <span class="n">dependencies</span><span class="p">:</span>
+            <span class="c1"># No need to resolve this dependency if we know it&#39;s local, or if</span>
+            <span class="c1"># we&#39;ve already resolved it into a system dependency</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">dependency</span> <span class="ow">in</span> <span class="n">catkin_packages</span> <span class="ow">or</span>
+                    <span class="n">dependency</span> <span class="ow">in</span> <span class="n">system_dependencies</span><span class="p">):</span>
+                <span class="k">continue</span>
+
+            <span class="c1"># In this situation, the package depends on something that we</span>
+            <span class="c1"># weren&#39;t instructed to build. It&#39;s probably a system dependency,</span>
+            <span class="c1"># but the developer could have also forgotten to tell us to build</span>
+            <span class="c1"># it.</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">these_dependencies</span> <span class="o">=</span> <span class="n">rosdep</span><span class="o">.</span><span class="n">resolve_dependency</span><span class="p">(</span><span class="n">dependency</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">SystemDependencyNotFound</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="s2">&quot;Package {!r} isn&#39;t a valid system dependency. &quot;</span>
+                    <span class="s2">&quot;Did you forget to add it to catkin-packages? If &quot;</span>
+                    <span class="s2">&quot;not, add the Ubuntu package containing it to &quot;</span>
+                    <span class="s2">&quot;stage-packages until you can get it into the &quot;</span>
+                    <span class="s2">&quot;rosdep database.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">dependency</span><span class="p">))</span>
+
+            <span class="n">system_dependencies</span><span class="p">[</span><span class="n">dependency</span><span class="p">]</span> <span class="o">=</span> <span class="n">these_dependencies</span>
+
+    <span class="c1"># Finally, return a list of all system dependencies</span>
+    <span class="k">return</span> <span class="nb">set</span><span class="p">(</span><span class="n">item</span> <span class="k">for</span> <span class="n">sublist</span> <span class="ow">in</span> <span class="n">system_dependencies</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
+               <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">sublist</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="SystemDependencyNotFound"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.catkin.SystemDependencyNotFound">[docs]</a><span class="k">class</span> <span class="nc">SystemDependencyNotFound</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+
+<span class="k">class</span> <span class="nc">_Rosdep</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ros_distro</span><span class="p">,</span> <span class="n">ros_package_path</span><span class="p">,</span> <span class="n">rosdep_path</span><span class="p">,</span>
+                 <span class="n">ubuntu_sources</span><span class="p">,</span> <span class="n">project</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ros_distro</span> <span class="o">=</span> <span class="n">ros_distro</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ros_package_path</span> <span class="o">=</span> <span class="n">ros_package_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ubuntu_sources</span> <span class="o">=</span> <span class="n">ubuntu_sources</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_path</span> <span class="o">=</span> <span class="n">rosdep_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_install_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_path</span><span class="p">,</span> <span class="s1">&#39;install&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_sources_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_path</span><span class="p">,</span>
+                                                 <span class="s1">&#39;sources.list.d&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_cache_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_path</span><span class="p">,</span> <span class="s1">&#39;cache&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_project</span> <span class="o">=</span> <span class="n">project</span>
+
+    <span class="k">def</span> <span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Make sure we can run multiple times without error, while leaving the</span>
+        <span class="c1"># capability to re-initialize, by making sure we clear the sources.</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_sources_path</span><span class="p">):</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_sources_path</span><span class="p">)</span>
+
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_sources_path</span><span class="p">)</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_install_path</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_cache_path</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+        <span class="c1"># rosdep isn&#39;t necessarily a dependency of the project, and we don&#39;t</span>
+        <span class="c1"># want to bloat the .snap more than necessary. So we&#39;ll unpack it</span>
+        <span class="c1"># somewhere else, and use it from there.</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Preparing to fetch rosdep...&#39;</span><span class="p">)</span>
+        <span class="n">ubuntu</span> <span class="o">=</span> <span class="n">repo</span><span class="o">.</span><span class="n">Ubuntu</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_path</span><span class="p">,</span> <span class="n">sources</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_ubuntu_sources</span><span class="p">,</span>
+                             <span class="n">project_options</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_project</span><span class="p">)</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Fetching rosdep...&#39;</span><span class="p">)</span>
+        <span class="n">ubuntu</span><span class="o">.</span><span class="n">get</span><span class="p">([</span><span class="s1">&#39;python-rosdep&#39;</span><span class="p">])</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Installing rosdep...&#39;</span><span class="p">)</span>
+        <span class="n">ubuntu</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_install_path</span><span class="p">)</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Initializing rosdep database...&#39;</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_run</span><span class="p">([</span><span class="s1">&#39;init&#39;</span><span class="p">])</span>
+        <span class="k">except</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">CalledProcessError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf8&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="s1">&#39;Error initializing rosdep database:</span><span class="se">\n</span><span class="s1">{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">output</span><span class="p">))</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Updating rosdep database...&#39;</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_run</span><span class="p">([</span><span class="s1">&#39;update&#39;</span><span class="p">])</span>
+        <span class="k">except</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">CalledProcessError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf8&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="s1">&#39;Error updating rosdep database:</span><span class="se">\n</span><span class="s1">{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">output</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">get_dependencies</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">package_name</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_run</span><span class="p">([</span><span class="s1">&#39;keys&#39;</span><span class="p">,</span> <span class="n">package_name</span><span class="p">])</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">output</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">output</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">[]</span>
+        <span class="k">except</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">CalledProcessError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">FileNotFoundError</span><span class="p">(</span>
+                <span class="s1">&#39;Unable to find Catkin package &quot;{}&quot;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">package_name</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">resolve_dependency</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dependency_name</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># rosdep needs three pieces of information here:</span>
+            <span class="c1">#</span>
+            <span class="c1"># 1) The dependency we&#39;re trying to lookup.</span>
+            <span class="c1"># 2) The rosdistro being used.</span>
+            <span class="c1"># 3) The version of Ubuntu being used. We&#39;re telling rosdep to</span>
+            <span class="c1">#    resolve dependencies using the version of Ubuntu that</span>
+            <span class="c1">#    corresponds to the ROS release (even if we&#39;re running on</span>
+            <span class="c1">#    something else).</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_run</span><span class="p">([</span><span class="s1">&#39;resolve&#39;</span><span class="p">,</span> <span class="n">dependency_name</span><span class="p">,</span> <span class="s1">&#39;--rosdistro&#39;</span><span class="p">,</span>
+                                <span class="bp">self</span><span class="o">.</span><span class="n">_ros_distro</span><span class="p">,</span> <span class="s1">&#39;--os&#39;</span><span class="p">,</span>
+                                <span class="s1">&#39;ubuntu:{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                                    <span class="n">_ROS_RELEASE_MAP</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_ros_distro</span><span class="p">])])</span>
+        <span class="k">except</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">CalledProcessError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">SystemDependencyNotFound</span><span class="p">(</span>
+                <span class="s1">&#39;{!r} does not resolve to a system dependency&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">dependency_name</span><span class="p">))</span>
+
+        <span class="c1"># Everything that isn&#39;t a package name is prepended with the pound</span>
+        <span class="c1"># sign, so we&#39;ll ignore everything with that.</span>
+        <span class="n">delimiters</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;\n|\s&#39;</span><span class="p">)</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="n">delimiters</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">line</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;#&#39;</span><span class="p">)]</span>
+
+    <span class="k">def</span> <span class="nf">_run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arguments</span><span class="p">):</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="c1"># We want to make sure we use our own rosdep (which is python)</span>
+        <span class="n">env</span><span class="p">[</span><span class="s1">&#39;PATH&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_install_path</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;bin&#39;</span><span class="p">)</span>
+        <span class="n">env</span><span class="p">[</span><span class="s1">&#39;PYTHONPATH&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_install_path</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span>
+                                         <span class="s1">&#39;lib&#39;</span><span class="p">,</span> <span class="s1">&#39;python2.7&#39;</span><span class="p">,</span> <span class="s1">&#39;dist-packages&#39;</span><span class="p">)</span>
+
+        <span class="c1"># By default, rosdep uses /etc/ros/rosdep to hold its sources list. We</span>
+        <span class="c1"># don&#39;t want that here since we don&#39;t want to touch the host machine</span>
+        <span class="c1"># (not to mention it would require sudo), so we can redirect it via</span>
+        <span class="c1"># this environment variable</span>
+        <span class="n">env</span><span class="p">[</span><span class="s1">&#39;ROSDEP_SOURCE_PATH&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_sources_path</span>
+
+        <span class="c1"># By default, rosdep saves its cache in $HOME/.ros, which we shouldn&#39;t</span>
+        <span class="c1"># access here, so we&#39;ll redirect it with this environment variable.</span>
+        <span class="n">env</span><span class="p">[</span><span class="s1">&#39;ROS_HOME&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rosdep_cache_path</span>
+
+        <span class="c1"># This environment variable tells rosdep which directory to recursively</span>
+        <span class="c1"># search for packages.</span>
+        <span class="n">env</span><span class="p">[</span><span class="s1">&#39;ROS_PACKAGE_PATH&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ros_package_path</span>
+
+        <span class="k">return</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">check_output</span><span class="p">([</span><span class="s1">&#39;rosdep&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">arguments</span><span class="p">,</span>
+                                       <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf8&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+
+
+<span class="k">class</span> <span class="nc">_Compilers</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">compilers_path</span><span class="p">,</span> <span class="n">ubuntu_sources</span><span class="p">,</span> <span class="n">project</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_compilers_path</span> <span class="o">=</span> <span class="n">compilers_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ubuntu_sources</span> <span class="o">=</span> <span class="n">ubuntu_sources</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_project</span> <span class="o">=</span> <span class="n">project</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_compilers_install_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_compilers_path</span><span class="p">,</span> <span class="s1">&#39;install&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__gcc_version</span> <span class="o">=</span> <span class="bp">None</span>
+
+    <span class="k">def</span> <span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_compilers_install_path</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+        <span class="c1"># Since we support building older ROS distros we need to make sure we</span>
+        <span class="c1"># use the corresponding compiler versions, so they can&#39;t be</span>
+        <span class="c1"># build-packages. We&#39;ll just download them to another place and use</span>
+        <span class="c1"># them from there.</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Preparing to fetch compilers...&#39;</span><span class="p">)</span>
+        <span class="n">ubuntu</span> <span class="o">=</span> <span class="n">repo</span><span class="o">.</span><span class="n">Ubuntu</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_compilers_path</span><span class="p">,</span> <span class="n">sources</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_ubuntu_sources</span><span class="p">,</span>
+            <span class="n">project_options</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_project</span><span class="p">)</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Fetching compilers...&#39;</span><span class="p">)</span>
+        <span class="n">ubuntu</span><span class="o">.</span><span class="n">get</span><span class="p">([</span><span class="s1">&#39;gcc&#39;</span><span class="p">,</span> <span class="s1">&#39;g++&#39;</span><span class="p">])</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Installing compilers...&#39;</span><span class="p">)</span>
+        <span class="n">ubuntu</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_compilers_install_path</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">environment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="n">paths</span> <span class="o">=</span> <span class="n">common</span><span class="o">.</span><span class="n">get_library_paths</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_compilers_install_path</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_project</span><span class="o">.</span><span class="n">arch_triplet</span><span class="p">)</span>
+        <span class="n">ld_library_path</span> <span class="o">=</span> <span class="n">formatting_utils</span><span class="o">.</span><span class="n">combine_paths</span><span class="p">(</span>
+            <span class="n">paths</span><span class="p">,</span> <span class="n">prepend</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">separator</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">)</span>
+
+        <span class="n">env</span><span class="p">[</span><span class="s1">&#39;LD_LIBRARY_PATH&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">env</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;LD_LIBRARY_PATH&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;:&#39;</span> <span class="o">+</span> <span class="n">ld_library_path</span><span class="p">)</span>
+
+        <span class="n">env</span><span class="p">[</span><span class="s1">&#39;PATH&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;PATH&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;:&#39;</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_compilers_install_path</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;bin&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">env</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">c_compiler_path</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_compilers_install_path</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;bin&#39;</span><span class="p">,</span> <span class="s1">&#39;gcc&#39;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">cxx_compiler_path</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_compilers_install_path</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;bin&#39;</span><span class="p">,</span> <span class="s1">&#39;g++&#39;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">cflags</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;&#39;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">cxxflags</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">paths</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">common</span><span class="o">.</span><span class="n">get_include_paths</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_compilers_install_path</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_project</span><span class="o">.</span><span class="n">arch_triplet</span><span class="p">))</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">paths</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">_get_highest_version_path</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_compilers_install_path</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;include&#39;</span><span class="p">,</span> <span class="s1">&#39;c++&#39;</span><span class="p">)))</span>
+            <span class="n">paths</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">_get_highest_version_path</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_compilers_install_path</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;include&#39;</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_project</span><span class="o">.</span><span class="n">arch_triplet</span><span class="p">,</span> <span class="s1">&#39;c++&#39;</span><span class="p">)))</span>
+        <span class="k">except</span> <span class="ne">RuntimeError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s1">&#39;Unable to determine gcc version: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)))</span>
+
+        <span class="k">return</span> <span class="n">formatting_utils</span><span class="o">.</span><span class="n">combine_paths</span><span class="p">(</span>
+            <span class="n">paths</span><span class="p">,</span> <span class="n">prepend</span><span class="o">=</span><span class="s1">&#39;-I&#39;</span><span class="p">,</span> <span class="n">separator</span><span class="o">=</span><span class="s1">&#39; &#39;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ldflags</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">paths</span> <span class="o">=</span> <span class="n">common</span><span class="o">.</span><span class="n">get_library_paths</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_compilers_install_path</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_project</span><span class="o">.</span><span class="n">arch_triplet</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">formatting_utils</span><span class="o">.</span><span class="n">combine_paths</span><span class="p">(</span>
+            <span class="n">paths</span><span class="p">,</span> <span class="n">prepend</span><span class="o">=</span><span class="s1">&#39;-L&#39;</span><span class="p">,</span> <span class="n">separator</span><span class="o">=</span><span class="s1">&#39; &#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_get_highest_version_path</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+    <span class="n">paths</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;*&#39;</span><span class="p">)))</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">paths</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s1">&#39;nothing found in {!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">path</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">paths</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  <li><a href="../../snapcraft.html">snapcraft</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

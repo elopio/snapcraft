@@ -1,0 +1,316 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.internal.errors &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../../index.html" />
+    <link rel="up" title="snapcraft" href="../../snapcraft.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.internal.errors</h1><div class="highlight"><pre>
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2016-2017 Canonical Ltd</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="kn">import</span> <span class="nn">contextlib</span>
+
+<span class="kn">from</span> <span class="nn">snapcraft</span> <span class="kn">import</span> <span class="n">formatting_utils</span>
+
+<span class="c1"># dict of jsonschema validator -&gt; cause pairs. Wish jsonschema just gave us</span>
+<span class="c1"># better messages.</span>
+<span class="n">_VALIDATION_ERROR_CAUSES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;maxLength&#39;</span><span class="p">:</span> <span class="s1">&#39;maximum length is {validator_value}&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;minLength&#39;</span><span class="p">:</span> <span class="s1">&#39;minimum length is {validator_value}&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="SnapcraftError"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.errors.SnapcraftError">[docs]</a><span class="k">class</span> <span class="nc">SnapcraftError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Base class for all snapcraft exceptions.</span>
+
+<span class="sd">    :cvar fmt: A format string that daughter classes override</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;Daughter classes should redefine this&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">fmt</span><span class="o">.</span><span class="n">format</span><span class="p">([],</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">__dict__</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PluginError"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.errors.PluginError">[docs]</a><span class="k">class</span> <span class="nc">PluginError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="MissingState"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.errors.MissingState">[docs]</a><span class="k">class</span> <span class="nc">MissingState</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="SnapcraftEnvironmentError"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.errors.SnapcraftEnvironmentError">[docs]</a><span class="k">class</span> <span class="nc">SnapcraftEnvironmentError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="PrimeFileConflictError"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.errors.PrimeFileConflictError">[docs]</a><span class="k">class</span> <span class="nc">PrimeFileConflictError</span><span class="p">(</span><span class="n">SnapcraftError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;The following files have been excluded by the `stage` keyword, &#39;</span>
+        <span class="s1">&#39;but included by the `prime` keyword: {fileset!r}&#39;</span>
+    <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="DuplicateAliasError"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.errors.DuplicateAliasError">[docs]</a><span class="k">class</span> <span class="nc">DuplicateAliasError</span><span class="p">(</span><span class="n">SnapcraftError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;Multiple parts have the same alias defined: {aliases!r}&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">aliases</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">set</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">aliases</span> <span class="o">=</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">aliases</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__str__</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="SnapcraftPartMissingError"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.errors.SnapcraftPartMissingError">[docs]</a><span class="k">class</span> <span class="nc">SnapcraftPartMissingError</span><span class="p">(</span><span class="n">SnapcraftError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;Cannot find the definition for part {part_name!r}.</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="s1">&#39;It may be a remote part, run `snapcraft update` &#39;</span>
+        <span class="s1">&#39;to refresh the remote parts cache.&#39;</span>
+    <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SnapcraftPartConflictError"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.errors.SnapcraftPartConflictError">[docs]</a><span class="k">class</span> <span class="nc">SnapcraftPartConflictError</span><span class="p">(</span><span class="n">SnapcraftError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;Parts {other_part_name!r} and {part_name!r} have the following file &#39;</span>
+        <span class="s1">&#39;paths in common which have different contents:</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="s1">&#39;{file_paths}</span><span class="se">\n\n</span><span class="s1">&#39;</span>
+        <span class="s1">&#39;Snapcraft offers some capabilities to solve this by use of the &#39;</span>
+        <span class="s1">&#39;following keywords:</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="s1">&#39;    - `filesets`</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="s1">&#39;    - `stage`</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="s1">&#39;    - `snap`</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="s1">&#39;    - `organize`</span><span class="se">\n\n</span><span class="s1">&#39;</span>
+        <span class="s1">&#39;Learn more about these part keywords by running &#39;</span>
+        <span class="s1">&#39;`snapcraft help plugins`&#39;</span>
+    <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">part_name</span><span class="p">,</span> <span class="n">other_part_name</span><span class="p">,</span> <span class="n">conflict_files</span><span class="p">):</span>
+        <span class="n">spaced_conflict_files</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;    {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">conflict_files</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">part_name</span><span class="o">=</span><span class="n">part_name</span><span class="p">,</span>
+                         <span class="n">other_part_name</span><span class="o">=</span><span class="n">other_part_name</span><span class="p">,</span>
+                         <span class="n">file_paths</span><span class="o">=</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">spaced_conflict_files</span><span class="p">)))</span></div>
+
+
+<div class="viewcode-block" id="MissingCommandError"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.errors.MissingCommandError">[docs]</a><span class="k">class</span> <span class="nc">MissingCommandError</span><span class="p">(</span><span class="n">SnapcraftError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;One or more required commands are missing, please install:&#39;</span>
+        <span class="s1">&#39; {required_commands!r}&#39;</span>
+    <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">required_commands</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">required_commands</span><span class="o">=</span><span class="n">required_commands</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="InvalidWikiEntryError"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.errors.InvalidWikiEntryError">[docs]</a><span class="k">class</span> <span class="nc">InvalidWikiEntryError</span><span class="p">(</span><span class="n">SnapcraftError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;Invalid wiki entry: {error!r}&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">error</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">error</span><span class="o">=</span><span class="n">error</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="MissingGadgetError"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.errors.MissingGadgetError">[docs]</a><span class="k">class</span> <span class="nc">MissingGadgetError</span><span class="p">(</span><span class="n">SnapcraftError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;When creating gadget snaps you are required to provide a gadget.yaml file</span><span class="se">\n</span><span class="s1">&#39;</span>  <span class="c1"># noqa</span>
+        <span class="s1">&#39;in the root of your snapcraft project</span><span class="se">\n\n</span><span class="s1">&#39;</span>
+        <span class="s1">&#39;Read more about gadget snaps and the gadget.yaml on:</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="s1">&#39;https://github.com/snapcore/snapd/wiki/Gadget-snap&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RequiredCommandFailure"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.errors.RequiredCommandFailure">[docs]</a><span class="k">class</span> <span class="nc">RequiredCommandFailure</span><span class="p">(</span><span class="n">SnapcraftError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;{command!r} failed.&#39;</span></div>
+
+
+<div class="viewcode-block" id="RequiredCommandNotFound"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.errors.RequiredCommandNotFound">[docs]</a><span class="k">class</span> <span class="nc">RequiredCommandNotFound</span><span class="p">(</span><span class="n">SnapcraftError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;{cmd_list[0]!r} not found.&#39;</span></div>
+
+
+<div class="viewcode-block" id="RequiredPathDoesNotExist"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.errors.RequiredPathDoesNotExist">[docs]</a><span class="k">class</span> <span class="nc">RequiredPathDoesNotExist</span><span class="p">(</span><span class="n">SnapcraftError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;Required path does not exist: {path!r}&#39;</span></div>
+
+
+<div class="viewcode-block" id="SnapcraftSchemaError"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.errors.SnapcraftSchemaError">[docs]</a><span class="k">class</span> <span class="nc">SnapcraftSchemaError</span><span class="p">(</span><span class="n">SnapcraftError</span><span class="p">):</span>
+
+    <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;{message}&#39;</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="SnapcraftSchemaError.from_validation_error"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.errors.SnapcraftSchemaError.from_validation_error">[docs]</a>    <span class="k">def</span> <span class="nf">from_validation_error</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">error</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Take a jsonschema.ValidationError and create a SnapcraftSchemaError.</span>
+
+<span class="sd">        The validation errors coming from jsonschema are a nightmare. This</span>
+<span class="sd">        class tries to make them a bit more understandable.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">messages</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1"># error.validator_value may contain a custom validation error message.</span>
+        <span class="c1"># If so, use it instead of the garbage message jsonschema gives us.</span>
+        <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">suppress</span><span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">KeyError</span><span class="p">):</span>
+            <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">error</span><span class="o">.</span><span class="n">validator_value</span><span class="p">[</span><span class="s1">&#39;validation-failure&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">error</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">messages</span><span class="p">:</span>
+            <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">error</span><span class="o">.</span><span class="n">message</span><span class="p">)</span>
+
+        <span class="n">path</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">while</span> <span class="n">error</span><span class="o">.</span><span class="n">absolute_path</span><span class="p">:</span>
+            <span class="n">element</span> <span class="o">=</span> <span class="n">error</span><span class="o">.</span><span class="n">absolute_path</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+            <span class="c1"># assume numbers are indices and use &#39;xxx[123]&#39; notation.</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">element</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="n">path</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;{}[{}]&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">path</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">element</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">element</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">path</span><span class="p">:</span>
+            <span class="n">messages</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;The &#39;{}&#39; property does not match the &quot;</span>
+                               <span class="s2">&quot;required schema:&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">)))</span>
+        <span class="n">cause</span> <span class="o">=</span> <span class="n">error</span><span class="o">.</span><span class="n">cause</span> <span class="ow">or</span> <span class="n">_determine_cause</span><span class="p">(</span><span class="n">error</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">cause</span><span class="p">:</span>
+            <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;({})&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">cause</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">cls</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">messages</span><span class="p">))</span></div>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">message</span><span class="o">=</span><span class="n">message</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">_determine_cause</span><span class="p">(</span><span class="n">error</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Attempt to determine a cause from validation error.</span>
+
+<span class="sd">    :return: A string representing the cause of the error (it may be empty if</span>
+<span class="sd">             no cause can be determined).</span>
+<span class="sd">    :rtype: str</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">message</span> <span class="o">=</span> <span class="n">_VALIDATION_ERROR_CAUSES</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">error</span><span class="o">.</span><span class="n">validator</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">validator_value</span><span class="o">=</span><span class="n">error</span><span class="o">.</span><span class="n">validator_value</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">message</span> <span class="ow">and</span> <span class="n">error</span><span class="o">.</span><span class="n">validator</span> <span class="o">==</span> <span class="s1">&#39;anyOf&#39;</span><span class="p">:</span>
+        <span class="n">message</span> <span class="o">=</span> <span class="n">_interpret_anyOf</span><span class="p">(</span><span class="n">error</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">message</span>
+
+
+<span class="k">def</span> <span class="nf">_interpret_anyOf</span><span class="p">(</span><span class="n">error</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Interpret a validation error caused by the anyOf validator.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A string containing a (hopefully) helpful validation error message. It</span>
+<span class="sd">        may be empty.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">usages</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">validator</span> <span class="ow">in</span> <span class="n">error</span><span class="o">.</span><span class="n">validator_value</span><span class="p">:</span>
+            <span class="n">usages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">validator</span><span class="p">[</span><span class="s1">&#39;usage&#39;</span><span class="p">])</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">KeyError</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;&#39;</span>
+
+    <span class="k">return</span> <span class="s1">&#39;must be one of {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">formatting_utils</span><span class="o">.</span><span class="n">humanize_list</span><span class="p">(</span>
+        <span class="n">usages</span><span class="p">,</span> <span class="s1">&#39;or&#39;</span><span class="p">))</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  <li><a href="../../snapcraft.html">snapcraft</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

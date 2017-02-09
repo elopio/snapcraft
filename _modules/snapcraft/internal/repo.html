@@ -1,0 +1,628 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.internal.repo &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../../index.html" />
+    <link rel="up" title="snapcraft" href="../../snapcraft.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.internal.repo</h1><div class="highlight"><pre>
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2015-2016 Canonical Ltd</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="kn">import</span> <span class="nn">fileinput</span>
+<span class="kn">import</span> <span class="nn">glob</span>
+<span class="kn">import</span> <span class="nn">hashlib</span>
+<span class="kn">import</span> <span class="nn">itertools</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">platform</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">shutil</span>
+<span class="kn">import</span> <span class="nn">stat</span>
+<span class="kn">import</span> <span class="nn">string</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">urllib</span>
+<span class="kn">import</span> <span class="nn">urllib.request</span>
+<span class="kn">from</span> <span class="nn">distutils.dir_util</span> <span class="kn">import</span> <span class="n">copy_tree</span>
+<span class="kn">from</span> <span class="nn">contextlib</span> <span class="kn">import</span> <span class="n">contextmanager</span>
+
+<span class="kn">import</span> <span class="nn">apt</span>
+<span class="kn">from</span> <span class="nn">xml.etree</span> <span class="kn">import</span> <span class="n">ElementTree</span>
+<span class="kn">from</span> <span class="nn">xdg</span> <span class="kn">import</span> <span class="n">BaseDirectory</span>
+
+<span class="kn">import</span> <span class="nn">snapcraft</span>
+<span class="kn">from</span> <span class="nn">snapcraft</span> <span class="kn">import</span> <span class="n">file_utils</span>
+<span class="kn">from</span> <span class="nn">snapcraft.internal</span> <span class="kn">import</span> <span class="n">common</span>
+<span class="kn">from</span> <span class="nn">snapcraft.internal.errors</span> <span class="kn">import</span> <span class="n">MissingCommandError</span>
+<span class="kn">from</span> <span class="nn">snapcraft.internal.indicators</span> <span class="kn">import</span> <span class="n">is_dumb_terminal</span>
+
+
+<span class="n">_BIN_PATHS</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s1">&#39;bin&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;sbin&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;usr/bin&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;usr/sbin&#39;</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+<span class="n">_DEFAULT_SOURCES</span> <span class="o">=</span> \
+    <span class="sd">&#39;&#39;&#39;deb http://${prefix}.ubuntu.com/${suffix}/ ${release} main restricted</span>
+<span class="sd">deb http://${prefix}.ubuntu.com/${suffix}/ ${release}-updates main restricted</span>
+<span class="sd">deb http://${prefix}.ubuntu.com/${suffix}/ ${release} universe</span>
+<span class="sd">deb http://${prefix}.ubuntu.com/${suffix}/ ${release}-updates universe</span>
+<span class="sd">deb http://${prefix}.ubuntu.com/${suffix}/ ${release} multiverse</span>
+<span class="sd">deb http://${prefix}.ubuntu.com/${suffix}/ ${release}-updates multiverse</span>
+<span class="sd">deb http://${security}.ubuntu.com/${suffix} ${release}-security main restricted</span>
+<span class="sd">deb http://${security}.ubuntu.com/${suffix} ${release}-security universe</span>
+<span class="sd">deb http://${security}.ubuntu.com/${suffix} ${release}-security multiverse</span>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="n">_GEOIP_SERVER</span> <span class="o">=</span> <span class="s2">&quot;http://geoip.ubuntu.com/lookup&quot;</span>
+
+
+<div class="viewcode-block" id="is_package_installed"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.repo.is_package_installed">[docs]</a><span class="k">def</span> <span class="nf">is_package_installed</span><span class="p">(</span><span class="n">package</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return True if a package is installed on the system.</span>
+
+<span class="sd">    :param str package: the deb package to query for.</span>
+<span class="sd">    :returns: True if the package is installed, False if not.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">with</span> <span class="n">apt</span><span class="o">.</span><span class="n">Cache</span><span class="p">()</span> <span class="k">as</span> <span class="n">apt_cache</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">apt_cache</span><span class="p">[</span><span class="n">package</span><span class="p">]</span><span class="o">.</span><span class="n">installed</span></div>
+
+
+<div class="viewcode-block" id="install_build_packages"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.repo.install_build_packages">[docs]</a><span class="k">def</span> <span class="nf">install_build_packages</span><span class="p">(</span><span class="n">packages</span><span class="p">):</span>
+    <span class="n">unique_packages</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">packages</span><span class="p">)</span>
+    <span class="n">new_packages</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">with</span> <span class="n">apt</span><span class="o">.</span><span class="n">Cache</span><span class="p">()</span> <span class="k">as</span> <span class="n">apt_cache</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">pkg</span> <span class="ow">in</span> <span class="n">unique_packages</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">apt_cache</span><span class="p">[</span><span class="n">pkg</span><span class="p">]</span><span class="o">.</span><span class="n">installed</span><span class="p">:</span>
+                    <span class="n">new_packages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pkg</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">KeyError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">EnvironmentError</span><span class="p">(</span>
+                    <span class="s1">&#39;Could not find a required package in &#39;</span>
+                    <span class="s1">&#39;</span><span class="se">\&#39;</span><span class="s1">build-packages</span><span class="se">\&#39;</span><span class="s1">: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)))</span>
+    <span class="k">if</span> <span class="n">new_packages</span><span class="p">:</span>
+        <span class="n">new_packages</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s1">&#39;Installing build dependencies: </span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">new_packages</span><span class="p">))</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="s1">&#39;DEBIAN_FRONTEND&#39;</span><span class="p">:</span> <span class="s1">&#39;noninteractive&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;DEBCONF_NONINTERACTIVE_SEEN&#39;</span><span class="p">:</span> <span class="s1">&#39;true&#39;</span><span class="p">,</span>
+        <span class="p">})</span>
+
+        <span class="n">apt_command</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;sudo&#39;</span><span class="p">,</span> <span class="s1">&#39;apt-get&#39;</span><span class="p">,</span>
+                       <span class="s1">&#39;--no-install-recommends&#39;</span><span class="p">,</span> <span class="s1">&#39;-y&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">is_dumb_terminal</span><span class="p">():</span>
+            <span class="n">apt_command</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s1">&#39;-o&#39;</span><span class="p">,</span> <span class="s1">&#39;Dpkg::Progress-Fancy=1&#39;</span><span class="p">])</span>
+        <span class="n">apt_command</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;install&#39;</span><span class="p">)</span>
+
+        <span class="n">subprocess</span><span class="o">.</span><span class="n">check_call</span><span class="p">(</span><span class="n">apt_command</span> <span class="o">+</span> <span class="n">new_packages</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">subprocess</span><span class="o">.</span><span class="n">check_call</span><span class="p">([</span><span class="s1">&#39;sudo&#39;</span><span class="p">,</span> <span class="s1">&#39;apt-mark&#39;</span><span class="p">,</span> <span class="s1">&#39;auto&#39;</span><span class="p">]</span> <span class="o">+</span>
+                                  <span class="n">new_packages</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">CalledProcessError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s1">&#39;Impossible to mark packages as auto-installed: {}&#39;</span>
+                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">e</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="get_packages_for_source_type"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.repo.get_packages_for_source_type">[docs]</a><span class="k">def</span> <span class="nf">get_packages_for_source_type</span><span class="p">(</span><span class="n">source_type</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return a list with required packages to handle the source_type.</span>
+
+<span class="sd">    :param source: the snapcraft source type</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">source_type</span> <span class="o">==</span> <span class="s1">&#39;bzr&#39;</span><span class="p">:</span>
+        <span class="n">packages</span> <span class="o">=</span> <span class="s1">&#39;bzr&#39;</span>
+    <span class="k">elif</span> <span class="n">source_type</span> <span class="o">==</span> <span class="s1">&#39;git&#39;</span><span class="p">:</span>
+        <span class="n">packages</span> <span class="o">=</span> <span class="s1">&#39;git&#39;</span>
+    <span class="k">elif</span> <span class="n">source_type</span> <span class="o">==</span> <span class="s1">&#39;tar&#39;</span><span class="p">:</span>
+        <span class="n">packages</span> <span class="o">=</span> <span class="s1">&#39;tar&#39;</span>
+    <span class="k">elif</span> <span class="n">source_type</span> <span class="o">==</span> <span class="s1">&#39;hg&#39;</span> <span class="ow">or</span> <span class="n">source_type</span> <span class="o">==</span> <span class="s1">&#39;mercurial&#39;</span><span class="p">:</span>
+        <span class="n">packages</span> <span class="o">=</span> <span class="s1">&#39;mercurial&#39;</span>
+    <span class="k">elif</span> <span class="n">source_type</span> <span class="o">==</span> <span class="s1">&#39;subversion&#39;</span> <span class="ow">or</span> <span class="n">source_type</span> <span class="o">==</span> <span class="s1">&#39;svn&#39;</span><span class="p">:</span>
+        <span class="n">packages</span> <span class="o">=</span> <span class="s1">&#39;subversion&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">packages</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">return</span> <span class="n">packages</span></div>
+
+
+<div class="viewcode-block" id="PackageNotFoundError"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.repo.PackageNotFoundError">[docs]</a><span class="k">class</span> <span class="nc">PackageNotFoundError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">message</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">message</span> <span class="o">=</span> <span class="s1">&#39;The Ubuntu package {!r} was not found.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">package_name</span><span class="p">)</span>
+        <span class="c1"># If the package was multiarch, try to help.</span>
+        <span class="k">if</span> <span class="s1">&#39;:&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">package_name</span><span class="p">:</span>
+            <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">arch</span><span class="p">)</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">package_name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">arch</span><span class="p">:</span>
+                <span class="n">message</span> <span class="o">+=</span> <span class="p">(</span>
+                    <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">You may need to add support for this architecture with &#39;</span>
+                    <span class="s2">&quot;&#39;dpkg --add-architecture {}&#39;.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">arch</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">message</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">package_name</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">package_name</span> <span class="o">=</span> <span class="n">package_name</span></div>
+
+
+<div class="viewcode-block" id="UnpackError"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.repo.UnpackError">[docs]</a><span class="k">class</span> <span class="nc">UnpackError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">message</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;Error while provisioning &quot;{}&quot;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">package_name</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">package_name</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">package_name</span> <span class="o">=</span> <span class="n">package_name</span></div>
+
+
+<span class="k">class</span> <span class="nc">_AptCache</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cache_dir</span><span class="p">,</span> <span class="n">deb_arch</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span>
+                 <span class="n">sources_list</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">use_geoip</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cache_dir</span> <span class="o">=</span> <span class="n">cache_dir</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_deb_arch</span> <span class="o">=</span> <span class="n">deb_arch</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sources_list</span> <span class="o">=</span> <span class="n">sources_list</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_use_geoip</span> <span class="o">=</span> <span class="n">use_geoip</span>
+
+    <span class="k">def</span> <span class="nf">_setup_apt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">download_dir</span><span class="p">):</span>
+        <span class="c1"># Create the &#39;partial&#39; subdir too (LP: #1578007).</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">download_dir</span><span class="p">,</span> <span class="s1">&#39;partial&#39;</span><span class="p">),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+        <span class="n">apt</span><span class="o">.</span><span class="n">apt_pkg</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s2">&quot;Dir::Cache::Archives&quot;</span><span class="p">,</span> <span class="n">download_dir</span><span class="p">)</span>
+
+        <span class="c1"># Do not install recommends</span>
+        <span class="n">apt</span><span class="o">.</span><span class="n">apt_pkg</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;Apt::Install-Recommends&#39;</span><span class="p">,</span> <span class="s1">&#39;False&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Make sure we always use the system GPG configuration, even with</span>
+        <span class="c1"># apt.Cache(rootdir).</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="s1">&#39;Dir::Etc::Trusted&#39;</span><span class="p">,</span> <span class="s1">&#39;Dir::Etc::TrustedParts&#39;</span><span class="p">:</span>
+            <span class="n">apt</span><span class="o">.</span><span class="n">apt_pkg</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">apt</span><span class="o">.</span><span class="n">apt_pkg</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">find_file</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
+
+        <span class="c1"># Clear up apt&#39;s Post-Invoke-Success as we are not running</span>
+        <span class="c1"># on the system.</span>
+        <span class="n">apt</span><span class="o">.</span><span class="n">apt_pkg</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">clear</span><span class="p">(</span><span class="s1">&#39;APT::Update::Post-Invoke-Success&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">progress</span> <span class="o">=</span> <span class="n">apt</span><span class="o">.</span><span class="n">progress</span><span class="o">.</span><span class="n">text</span><span class="o">.</span><span class="n">AcquireProgress</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">is_dumb_terminal</span><span class="p">():</span>
+            <span class="c1"># Make output more suitable for logging.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">progress</span><span class="o">.</span><span class="n">pulse</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">owner</span><span class="p">:</span> <span class="bp">True</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">progress</span><span class="o">.</span><span class="n">_width</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">def</span> <span class="nf">_setup_apt_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rootdir</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_use_geoip</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sources_list</span><span class="p">:</span>
+            <span class="n">release</span> <span class="o">=</span> <span class="n">platform</span><span class="o">.</span><span class="n">linux_distribution</span><span class="p">()[</span><span class="mi">2</span><span class="p">]</span>
+            <span class="n">sources_list</span> <span class="o">=</span> <span class="n">_format_sources_list</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_sources_list</span><span class="p">,</span> <span class="n">deb_arch</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_deb_arch</span><span class="p">,</span>
+                <span class="n">use_geoip</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_use_geoip</span><span class="p">,</span> <span class="n">release</span><span class="o">=</span><span class="n">release</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">sources_list</span> <span class="o">=</span> <span class="n">_get_local_sources_list</span><span class="p">()</span>
+
+        <span class="n">sources_list_digest</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha384</span><span class="p">(</span>
+            <span class="n">sources_list</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">getfilesystemencoding</span><span class="p">()))</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
+
+        <span class="n">cache_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cache_dir</span><span class="p">,</span> <span class="s1">&#39;apt&#39;</span><span class="p">,</span> <span class="n">sources_list_digest</span><span class="p">)</span>
+        <span class="n">apt_cache_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">cache_dir</span><span class="p">,</span> <span class="s1">&#39;apt&#39;</span><span class="p">)</span>
+        <span class="n">package_cache_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">cache_dir</span><span class="p">,</span> <span class="s1">&#39;packages&#39;</span><span class="p">)</span>
+
+        <span class="n">sources_list_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="n">apt_cache_dir</span><span class="p">,</span> <span class="s1">&#39;etc&#39;</span><span class="p">,</span> <span class="s1">&#39;apt&#39;</span><span class="p">,</span> <span class="s1">&#39;sources.list&#39;</span><span class="p">)</span>
+
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">sources_list_file</span><span class="p">),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">sources_list_file</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">sources_list</span><span class="p">)</span>
+
+        <span class="c1"># dpkg also needs to be in the rootdir in order to support multiarch</span>
+        <span class="c1"># (apt calls dpkg --print-foreign-architectures).</span>
+        <span class="n">dpkg_path</span> <span class="o">=</span> <span class="n">shutil</span><span class="o">.</span><span class="n">which</span><span class="p">(</span><span class="s1">&#39;dpkg&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">dpkg_path</span><span class="p">:</span>
+            <span class="c1"># Symlink it into place</span>
+            <span class="n">destination</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">apt_cache_dir</span><span class="p">,</span> <span class="n">dpkg_path</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">destination</span><span class="p">):</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">destination</span><span class="p">),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">symlink</span><span class="p">(</span><span class="n">dpkg_path</span><span class="p">,</span> <span class="n">destination</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">&quot;Cannot find &#39;dpkg&#39; command needed to support multiarch&quot;</span><span class="p">)</span>
+
+        <span class="n">apt_cache</span> <span class="o">=</span> <span class="n">apt</span><span class="o">.</span><span class="n">Cache</span><span class="p">(</span><span class="n">rootdir</span><span class="o">=</span><span class="n">apt_cache_dir</span><span class="p">,</span> <span class="n">memonly</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="n">apt_cache</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">fetch_progress</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">progress</span><span class="p">,</span>
+                         <span class="n">sources_list</span><span class="o">=</span><span class="n">sources_list_file</span><span class="p">)</span>
+
+        <span class="n">copy_tree</span><span class="p">(</span><span class="n">apt_cache_dir</span><span class="p">,</span> <span class="n">rootdir</span><span class="p">,</span> <span class="n">update</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">package_cache_dir</span>
+
+    <span class="k">def</span> <span class="nf">_restore_cached_packages</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">apt_changes</span><span class="p">,</span>
+                                 <span class="n">package_cache_dir</span><span class="p">,</span> <span class="n">download_dir</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">pkg</span> <span class="ow">in</span> <span class="n">apt_changes</span><span class="p">:</span>
+            <span class="n">src</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">package_cache_dir</span><span class="p">,</span> <span class="n">pkg</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="n">dst</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">download_dir</span><span class="p">,</span> <span class="n">pkg</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">src</span><span class="p">):</span>
+                <span class="n">file_utils</span><span class="o">.</span><span class="n">link_or_copy</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">dst</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_store_cached_packages</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">package_cache_dir</span><span class="p">,</span> <span class="n">download_dir</span><span class="p">):</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">package_cache_dir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">pkg</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">download_dir</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">pkg</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.deb&#39;</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="n">src</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">download_dir</span><span class="p">,</span> <span class="n">pkg</span><span class="p">)</span>
+            <span class="n">dst</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">package_cache_dir</span><span class="p">,</span> <span class="n">pkg</span><span class="p">)</span>
+            <span class="c1"># The dst may be an incomplete or broken so let&#39;s update</span>
+            <span class="c1"># just in case.</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">dst</span><span class="p">):</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">dst</span><span class="p">)</span>
+            <span class="n">file_utils</span><span class="o">.</span><span class="n">link_or_copy</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">dst</span><span class="p">)</span>
+
+    <span class="nd">@contextmanager</span>
+    <span class="k">def</span> <span class="nf">archive</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rootdir</span><span class="p">,</span> <span class="n">download_dir</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_setup_apt</span><span class="p">(</span><span class="n">download_dir</span><span class="p">)</span>
+            <span class="n">package_cache_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_setup_apt_cache</span><span class="p">(</span><span class="n">rootdir</span><span class="p">)</span>
+            <span class="n">apt_cache</span> <span class="o">=</span> <span class="n">apt</span><span class="o">.</span><span class="n">Cache</span><span class="p">(</span><span class="n">rootdir</span><span class="o">=</span><span class="n">rootdir</span><span class="p">,</span> <span class="n">memonly</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+            <span class="n">apt_cache</span><span class="o">.</span><span class="n">open</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_restore_cached_packages</span><span class="p">(</span><span class="n">apt_cache</span><span class="o">.</span><span class="n">get_changes</span><span class="p">(),</span>
+                                          <span class="n">package_cache_dir</span><span class="p">,</span> <span class="n">download_dir</span><span class="p">)</span>
+            <span class="k">yield</span> <span class="n">apt_cache</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_store_cached_packages</span><span class="p">(</span><span class="n">package_cache_dir</span><span class="p">,</span> <span class="n">download_dir</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Exception occured: {!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
+            <span class="k">raise</span> <span class="n">e</span>
+
+
+<div class="viewcode-block" id="Ubuntu"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.repo.Ubuntu">[docs]</a><span class="k">class</span> <span class="nc">Ubuntu</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rootdir</span><span class="p">,</span> <span class="n">recommends</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                 <span class="n">sources</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">project_options</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">downloaddir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">rootdir</span><span class="p">,</span> <span class="s1">&#39;download&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rootdir</span> <span class="o">=</span> <span class="n">rootdir</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">recommends</span> <span class="o">=</span> <span class="n">recommends</span>
+        <span class="n">cache_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="n">BaseDirectory</span><span class="o">.</span><span class="n">xdg_cache_home</span><span class="p">,</span> <span class="s1">&#39;snapcraft&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">project_options</span><span class="p">:</span>
+            <span class="n">project_options</span> <span class="o">=</span> <span class="n">snapcraft</span><span class="o">.</span><span class="n">ProjectOptions</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">apt</span> <span class="o">=</span> <span class="n">_AptCache</span><span class="p">(</span><span class="n">cache_dir</span><span class="p">,</span> <span class="n">project_options</span><span class="o">.</span><span class="n">deb_arch</span><span class="p">,</span>
+                             <span class="n">sources_list</span><span class="o">=</span><span class="n">sources</span><span class="p">,</span>
+                             <span class="n">use_geoip</span><span class="o">=</span><span class="n">project_options</span><span class="o">.</span><span class="n">use_geoip</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Ubuntu.is_valid"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.repo.Ubuntu.is_valid">[docs]</a>    <span class="k">def</span> <span class="nf">is_valid</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">package_name</span><span class="p">):</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">apt</span><span class="o">.</span><span class="n">archive</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rootdir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">downloaddir</span><span class="p">)</span> <span class="k">as</span> <span class="n">apt_cache</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">package_name</span> <span class="ow">in</span> <span class="n">apt_cache</span></div>
+
+<div class="viewcode-block" id="Ubuntu.get"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.repo.Ubuntu.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">package_names</span><span class="p">):</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">apt</span><span class="o">.</span><span class="n">archive</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rootdir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">downloaddir</span><span class="p">)</span> <span class="k">as</span> <span class="n">apt_cache</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_get</span><span class="p">(</span><span class="n">apt_cache</span><span class="p">,</span> <span class="n">package_names</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">apt_cache</span><span class="p">,</span> <span class="n">package_names</span><span class="p">):</span>
+        <span class="n">manifest_dep_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_manifest_dep_names</span><span class="p">(</span><span class="n">apt_cache</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">package_names</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Marking {!r} as to install&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+                <span class="n">apt_cache</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">mark_install</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">PackageNotFoundError</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="n">skipped_essential</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">skipped_blacklisted</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1"># unmark some base packages here</span>
+        <span class="c1"># note that this will break the consistency check inside apt_cache</span>
+        <span class="c1"># (apt_cache.broken_count will be &gt; 0)</span>
+        <span class="c1"># but that is ok as it was consistent before we excluded</span>
+        <span class="c1"># these base package</span>
+        <span class="k">for</span> <span class="n">pkg</span> <span class="ow">in</span> <span class="n">apt_cache</span><span class="p">:</span>
+            <span class="c1"># those should be already on each system, it also prevents</span>
+            <span class="c1"># diving into downloading libc6</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">pkg</span><span class="o">.</span><span class="n">candidate</span><span class="o">.</span><span class="n">priority</span> <span class="ow">in</span> <span class="s1">&#39;essential&#39;</span> <span class="ow">and</span>
+               <span class="n">pkg</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">package_names</span><span class="p">):</span>
+                <span class="n">skipped_essential</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pkg</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                <span class="n">pkg</span><span class="o">.</span><span class="n">mark_keep</span><span class="p">()</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">pkg</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">manifest_dep_names</span> <span class="ow">and</span>
+                    <span class="n">pkg</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">package_names</span><span class="p">):</span>
+                <span class="n">skipped_blacklisted</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pkg</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                <span class="n">pkg</span><span class="o">.</span><span class="n">mark_keep</span><span class="p">()</span>
+                <span class="k">continue</span>
+
+        <span class="k">if</span> <span class="n">skipped_essential</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Skipping priority essential packages: &#39;</span>
+                         <span class="s1">&#39;{!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">skipped_essential</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">skipped_blacklisted</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Skipping blacklisted from manifest packages: &#39;</span>
+                         <span class="s1">&#39;{!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">skipped_blacklisted</span><span class="p">))</span>
+
+        <span class="n">apt_cache</span><span class="o">.</span><span class="n">fetch_archives</span><span class="p">(</span><span class="n">progress</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">apt</span><span class="o">.</span><span class="n">progress</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Ubuntu.unpack"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.repo.Ubuntu.unpack">[docs]</a>    <span class="k">def</span> <span class="nf">unpack</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rootdir</span><span class="p">):</span>
+        <span class="n">pkgs_abs_path</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">downloaddir</span><span class="p">,</span> <span class="s1">&#39;*.deb&#39;</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">pkg</span> <span class="ow">in</span> <span class="n">pkgs_abs_path</span><span class="p">:</span>
+            <span class="c1"># TODO needs elegance and error control</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">subprocess</span><span class="o">.</span><span class="n">check_call</span><span class="p">([</span><span class="s1">&#39;dpkg-deb&#39;</span><span class="p">,</span> <span class="s1">&#39;--extract&#39;</span><span class="p">,</span> <span class="n">pkg</span><span class="p">,</span> <span class="n">rootdir</span><span class="p">])</span>
+            <span class="k">except</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">CalledProcessError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">UnpackError</span><span class="p">(</span><span class="n">pkg</span><span class="p">)</span>
+
+        <span class="n">_fix_artifacts</span><span class="p">(</span><span class="n">rootdir</span><span class="p">)</span>
+        <span class="n">_fix_xml_tools</span><span class="p">(</span><span class="n">rootdir</span><span class="p">)</span>
+        <span class="n">_fix_shebangs</span><span class="p">(</span><span class="n">rootdir</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_manifest_dep_names</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">apt_cache</span><span class="p">):</span>
+        <span class="n">manifest_dep_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">__file__</span><span class="p">,</span> <span class="s1">&#39;..&#39;</span><span class="p">,</span>
+                                               <span class="s1">&#39;manifest.txt&#39;</span><span class="p">)))</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">pkg</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">pkg</span> <span class="ow">in</span> <span class="n">apt_cache</span><span class="p">:</span>
+                    <span class="n">manifest_dep_names</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">pkg</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">manifest_dep_names</span></div>
+
+
+<span class="k">def</span> <span class="nf">_get_local_sources_list</span><span class="p">():</span>
+    <span class="n">sources_list</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s1">&#39;/etc/apt/sources.list.d/*.list&#39;</span><span class="p">)</span>
+    <span class="n">sources_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;/etc/apt/sources.list&#39;</span><span class="p">)</span>
+
+    <span class="n">sources</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+    <span class="k">for</span> <span class="n">source</span> <span class="ow">in</span> <span class="n">sources_list</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">source</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">sources</span> <span class="o">+=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">sources</span>
+
+
+<span class="k">def</span> <span class="nf">_get_geoip_country_code_prefix</span><span class="p">():</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">urllib</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">urlopen</span><span class="p">(</span><span class="n">_GEOIP_SERVER</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">xml_data</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+        <span class="n">et</span> <span class="o">=</span> <span class="n">ElementTree</span><span class="o">.</span><span class="n">fromstring</span><span class="p">(</span><span class="n">xml_data</span><span class="p">)</span>
+        <span class="n">cc</span> <span class="o">=</span> <span class="n">et</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">&quot;CountryCode&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">cc</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s2">&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">cc</span><span class="o">.</span><span class="n">text</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">except</span> <span class="p">(</span><span class="n">ElementTree</span><span class="o">.</span><span class="n">ParseError</span><span class="p">,</span> <span class="n">urllib</span><span class="o">.</span><span class="n">error</span><span class="o">.</span><span class="n">URLError</span><span class="p">):</span>
+        <span class="k">pass</span>
+    <span class="k">return</span> <span class="s1">&#39;&#39;</span>
+
+
+<span class="k">def</span> <span class="nf">_format_sources_list</span><span class="p">(</span><span class="n">sources_list</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span>
+                         <span class="n">deb_arch</span><span class="p">,</span> <span class="n">use_geoip</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">release</span><span class="o">=</span><span class="s1">&#39;xenial&#39;</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">sources_list</span><span class="p">:</span>
+        <span class="n">sources_list</span> <span class="o">=</span> <span class="n">_DEFAULT_SOURCES</span>
+
+    <span class="k">if</span> <span class="n">deb_arch</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;amd64&#39;</span><span class="p">,</span> <span class="s1">&#39;i386&#39;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">use_geoip</span><span class="p">:</span>
+            <span class="n">geoip_prefix</span> <span class="o">=</span> <span class="n">_get_geoip_country_code_prefix</span><span class="p">()</span>
+            <span class="n">prefix</span> <span class="o">=</span> <span class="s1">&#39;{}.archive&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">geoip_prefix</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">prefix</span> <span class="o">=</span> <span class="s1">&#39;archive&#39;</span>
+        <span class="n">suffix</span> <span class="o">=</span> <span class="s1">&#39;ubuntu&#39;</span>
+        <span class="n">security</span> <span class="o">=</span> <span class="s1">&#39;security&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">prefix</span> <span class="o">=</span> <span class="s1">&#39;ports&#39;</span>
+        <span class="n">suffix</span> <span class="o">=</span> <span class="s1">&#39;ubuntu-ports&#39;</span>
+        <span class="n">security</span> <span class="o">=</span> <span class="s1">&#39;ports&#39;</span>
+
+    <span class="k">return</span> <span class="n">string</span><span class="o">.</span><span class="n">Template</span><span class="p">(</span><span class="n">sources_list</span><span class="p">)</span><span class="o">.</span><span class="n">substitute</span><span class="p">({</span>
+        <span class="s1">&#39;prefix&#39;</span><span class="p">:</span> <span class="n">prefix</span><span class="p">,</span>
+        <span class="s1">&#39;release&#39;</span><span class="p">:</span> <span class="n">release</span><span class="p">,</span>
+        <span class="s1">&#39;suffix&#39;</span><span class="p">:</span> <span class="n">suffix</span><span class="p">,</span>
+        <span class="s1">&#39;security&#39;</span><span class="p">:</span> <span class="n">security</span><span class="p">,</span>
+    <span class="p">})</span>
+
+
+<div class="viewcode-block" id="fix_pkg_config"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.repo.fix_pkg_config">[docs]</a><span class="k">def</span> <span class="nf">fix_pkg_config</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">pkg_config_file</span><span class="p">,</span> <span class="n">prefix_trim</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Opens a pkg_config_file and prefixes the prefix with root.&quot;&quot;&quot;</span>
+    <span class="n">pattern_trim</span> <span class="o">=</span> <span class="bp">None</span>
+    <span class="k">if</span> <span class="n">prefix_trim</span><span class="p">:</span>
+        <span class="n">pattern_trim</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span>
+            <span class="s1">&#39;^prefix={}(?P&lt;prefix&gt;.*)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">prefix_trim</span><span class="p">))</span>
+    <span class="n">pattern</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">&#39;^prefix=(?P&lt;prefix&gt;.*)&#39;</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">fileinput</span><span class="o">.</span><span class="n">input</span><span class="p">(</span><span class="n">pkg_config_file</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">input_file</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">input_file</span><span class="p">:</span>
+            <span class="n">match</span> <span class="o">=</span> <span class="n">pattern</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">prefix_trim</span><span class="p">:</span>
+                <span class="n">match_trim</span> <span class="o">=</span> <span class="n">pattern_trim</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">prefix_trim</span> <span class="ow">and</span> <span class="n">match_trim</span><span class="p">:</span>
+                <span class="k">print</span><span class="p">(</span><span class="s1">&#39;prefix={}{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">match_trim</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;prefix&#39;</span><span class="p">)))</span>
+            <span class="k">elif</span> <span class="n">match</span><span class="p">:</span>
+                <span class="k">print</span><span class="p">(</span><span class="s1">&#39;prefix={}{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;prefix&#39;</span><span class="p">)))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">print</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">_fix_artifacts</span><span class="p">(</span><span class="n">debdir</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Sometimes debs will contain absolute symlinks (e.g. if the relative</span>
+<span class="sd">    path would go all the way to root, they just do absolute).  We can&#39;t</span>
+<span class="sd">    have that, so instead clean those absolute symlinks.</span>
+
+<span class="sd">    Some unpacked items will also contain suid binaries which we do not want in</span>
+<span class="sd">    the resulting snap.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">dirs</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span><span class="n">debdir</span><span class="p">):</span>
+        <span class="c1"># Symlinks to directories will be in dirs, while symlinks to</span>
+        <span class="c1"># non-directories will be in files.</span>
+        <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">chain</span><span class="p">(</span><span class="n">files</span><span class="p">,</span> <span class="n">dirs</span><span class="p">):</span>
+            <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">entry</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">islink</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isabs</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">readlink</span><span class="p">(</span><span class="n">path</span><span class="p">)):</span>
+                <span class="n">_fix_symlink</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">debdir</span><span class="p">,</span> <span class="n">root</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+                <span class="n">_fix_filemode</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.pc&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">islink</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+                <span class="n">fix_pkg_config</span><span class="p">(</span><span class="n">debdir</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_fix_xml_tools</span><span class="p">(</span><span class="n">root</span><span class="p">):</span>
+    <span class="n">xml2_config_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;bin&#39;</span><span class="p">,</span> <span class="s1">&#39;xml2-config&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">xml2_config_path</span><span class="p">):</span>
+        <span class="n">common</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+            <span class="p">[</span><span class="s1">&#39;sed&#39;</span><span class="p">,</span> <span class="s1">&#39;-i&#39;</span><span class="p">,</span> <span class="s1">&#39;-e&#39;</span><span class="p">,</span> <span class="s1">&#39;s|prefix=/usr|prefix={}/usr|&#39;</span><span class="o">.</span>
+                <span class="n">format</span><span class="p">(</span><span class="n">root</span><span class="p">),</span> <span class="n">xml2_config_path</span><span class="p">])</span>
+
+    <span class="n">xslt_config_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;bin&#39;</span><span class="p">,</span> <span class="s1">&#39;xslt-config&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">xslt_config_path</span><span class="p">):</span>
+        <span class="n">common</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+            <span class="p">[</span><span class="s1">&#39;sed&#39;</span><span class="p">,</span> <span class="s1">&#39;-i&#39;</span><span class="p">,</span> <span class="s1">&#39;-e&#39;</span><span class="p">,</span> <span class="s1">&#39;s|prefix=/usr|prefix={}/usr|&#39;</span><span class="o">.</span>
+                <span class="n">format</span><span class="p">(</span><span class="n">root</span><span class="p">),</span> <span class="n">xslt_config_path</span><span class="p">])</span>
+
+
+<span class="k">def</span> <span class="nf">_fix_symlink</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">debdir</span><span class="p">,</span> <span class="n">root</span><span class="p">):</span>
+    <span class="n">target</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">debdir</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">readlink</span><span class="p">(</span><span class="n">path</span><span class="p">)[</span><span class="mi">1</span><span class="p">:])</span>
+    <span class="k">if</span> <span class="n">_link_should_be_removed</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">readlink</span><span class="p">(</span><span class="n">path</span><span class="p">)):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Removing {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">target</span><span class="p">))</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">target</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">_try_copy_local</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+        <span class="k">return</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">symlink</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">root</span><span class="p">),</span> <span class="n">path</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_fix_filemode</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+    <span class="n">mode</span> <span class="o">=</span> <span class="n">stat</span><span class="o">.</span><span class="n">S_IMODE</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">stat</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">follow_symlinks</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span><span class="o">.</span><span class="n">st_mode</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">&amp;</span> <span class="mi">0</span><span class="n">o4000</span> <span class="ow">or</span> <span class="n">mode</span> <span class="o">&amp;</span> <span class="mi">0</span><span class="n">o2000</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;Removing suid/guid from {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">path</span><span class="p">))</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">chmod</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">mode</span> <span class="o">&amp;</span> <span class="mi">0</span><span class="n">o1777</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_fix_shebangs</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Changes hard coded shebangs for files in _BIN_PATHS to use env.&quot;&quot;&quot;</span>
+    <span class="n">paths</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">_BIN_PATHS</span> <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">p</span><span class="p">))]</span>
+    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="p">[</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">]:</span>
+        <span class="n">file_utils</span><span class="o">.</span><span class="n">replace_in_file</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;&#39;</span><span class="p">),</span>
+                                   <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;#!.*python\n&#39;</span><span class="p">),</span>
+                                   <span class="s1">r&#39;#!/usr/bin/env python\n&#39;</span><span class="p">)</span>
+
+
+<span class="n">_remove_list</span> <span class="o">=</span> <span class="bp">None</span>
+
+
+<span class="k">def</span> <span class="nf">_link_should_be_removed</span><span class="p">(</span><span class="n">target</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">_remove_list</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_remove_list</span><span class="p">:</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="n">common</span><span class="o">.</span><span class="n">run_output</span><span class="p">([</span><span class="s1">&#39;dpkg&#39;</span><span class="p">,</span> <span class="s1">&#39;-L&#39;</span><span class="p">,</span> <span class="s1">&#39;libc6&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+        <span class="n">_remove_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">output</span> <span class="k">if</span> <span class="s1">&#39;lib&#39;</span> <span class="ow">in</span> <span class="n">i</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">target</span> <span class="ow">in</span> <span class="n">_remove_list</span>
+
+
+<span class="k">def</span> <span class="nf">_try_copy_local</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+    <span class="n">real_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">real_path</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="s1">&#39;Copying needed target link from the system {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">real_path</span><span class="p">))</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">target</span><span class="p">),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="n">shutil</span><span class="o">.</span><span class="n">copyfile</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">readlink</span><span class="p">(</span><span class="n">path</span><span class="p">),</span> <span class="n">target</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">True</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="s1">&#39;{} will be a dangling symlink&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">path</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">False</span>
+
+
+<div class="viewcode-block" id="check_for_command"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.repo.check_for_command">[docs]</a><span class="k">def</span> <span class="nf">check_for_command</span><span class="p">(</span><span class="n">command</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">shutil</span><span class="o">.</span><span class="n">which</span><span class="p">(</span><span class="n">command</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">MissingCommandError</span><span class="p">([</span><span class="n">command</span><span class="p">])</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  <li><a href="../../snapcraft.html">snapcraft</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

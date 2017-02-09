@@ -1,0 +1,38 @@
+snapcraft.storeapi package
+==========================
+
+Submodules
+----------
+
+snapcraft.storeapi.compat module
+--------------------------------
+
+.. automodule:: snapcraft.storeapi.compat
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.storeapi.constants module
+-----------------------------------
+
+.. automodule:: snapcraft.storeapi.constants
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+snapcraft.storeapi.errors module
+--------------------------------
+
+.. automodule:: snapcraft.storeapi.errors
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Module contents
+---------------
+
+.. automodule:: snapcraft.storeapi
+    :members:
+    :undoc-members:
+    :show-inheritance:

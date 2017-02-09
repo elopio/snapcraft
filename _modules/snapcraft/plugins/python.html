@@ -1,0 +1,589 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.plugins.python &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../../index.html" />
+    <link rel="up" title="snapcraft" href="../../snapcraft.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.plugins.python</h1><div class="highlight"><pre>
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2016 Canonical Ltd</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="sd">&quot;&quot;&quot;The python plugin can be used for python 2 or 3 based parts.</span>
+
+<span class="sd">It can be used for python projects where you would want to do:</span>
+
+<span class="sd">    - import python modules with a requirements.txt</span>
+<span class="sd">    - build a python project that has a setup.py</span>
+<span class="sd">    - install packages straight from pip</span>
+
+<span class="sd">This plugin uses the common plugin keywords as well as those for &quot;sources&quot;.</span>
+<span class="sd">For more information check the &#39;plugins&#39; topic for the former and the</span>
+<span class="sd">&#39;sources&#39; topic for the latter.</span>
+
+<span class="sd">Additionally, this plugin uses the following plugin-specific keywords:</span>
+
+<span class="sd">    - requirements:</span>
+<span class="sd">      (string)</span>
+<span class="sd">      Path to a requirements.txt file</span>
+<span class="sd">    - constraints:</span>
+<span class="sd">      (string)</span>
+<span class="sd">      Path to a constraints file</span>
+<span class="sd">    - process-dependency-links:</span>
+<span class="sd">      (bool; default: false)</span>
+<span class="sd">      Enable the processing of dependency links.</span>
+<span class="sd">    - python-packages:</span>
+<span class="sd">      (list)</span>
+<span class="sd">      A list of dependencies to get from PyPi</span>
+<span class="sd">    - python-version:</span>
+<span class="sd">      (string; default: python3)</span>
+<span class="sd">      The python version to use. Valid options are: python2 and python3</span>
+
+<span class="sd">If the plugin finds a python interpreter with a basename that matches</span>
+<span class="sd">`python-version` in the &lt;stage&gt; directory on the following fixed path:</span>
+<span class="sd">`&lt;stage-dir&gt;/usr/bin/&lt;python-interpreter&gt;` then this interpreter would</span>
+<span class="sd">be preferred instead and no interpreter would be brought in through</span>
+<span class="sd">`stage-packages` mechanisms.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">shutil</span>
+<span class="kn">import</span> <span class="nn">stat</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">tempfile</span>
+<span class="kn">from</span> <span class="nn">contextlib</span> <span class="kn">import</span> <span class="n">contextmanager</span>
+<span class="kn">from</span> <span class="nn">glob</span> <span class="kn">import</span> <span class="n">glob</span>
+<span class="kn">from</span> <span class="nn">shutil</span> <span class="kn">import</span> <span class="n">which</span>
+<span class="kn">from</span> <span class="nn">textwrap</span> <span class="kn">import</span> <span class="n">dedent</span>
+
+<span class="kn">import</span> <span class="nn">snapcraft</span>
+<span class="kn">from</span> <span class="nn">snapcraft</span> <span class="kn">import</span> <span class="n">file_utils</span>
+<span class="kn">from</span> <span class="nn">snapcraft.common</span> <span class="kn">import</span> <span class="n">isurl</span>
+
+
+<span class="n">_SITECUSTOMIZE_TEMPLATE</span> <span class="o">=</span> <span class="n">dedent</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span>
+<span class="s2">    import site</span>
+<span class="s2">    import os</span>
+
+<span class="s2">    snap_dir = os.getenv(&quot;SNAP&quot;)</span>
+<span class="s2">    snapcraft_stage_dir = os.getenv(&quot;SNAPCRAFT_STAGE&quot;)</span>
+<span class="s2">    snapcraft_part_install = os.getenv(&quot;SNAPCRAFT_PART_INSTALL&quot;)</span>
+
+<span class="s2">    for d in (snap_dir, snapcraft_stage_dir, snapcraft_part_install):</span>
+<span class="s2">        if d:</span>
+<span class="s2">            site_dir = os.path.join(d, &quot;{site_dir}&quot;)</span>
+<span class="s2">            site.addsitedir(site_dir)</span>
+
+<span class="s2">    if snap_dir:</span>
+<span class="s2">        site.ENABLE_USER_SITE = False&quot;&quot;&quot;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="PythonPlugin"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.python.PythonPlugin">[docs]</a><span class="k">class</span> <span class="nc">PythonPlugin</span><span class="p">(</span><span class="n">snapcraft</span><span class="o">.</span><span class="n">BasePlugin</span><span class="p">):</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="PythonPlugin.schema"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.python.PythonPlugin.schema">[docs]</a>    <span class="k">def</span> <span class="nf">schema</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">schema</span><span class="p">()</span>
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;requirements&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;constraints&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;python-packages&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;array&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;minitems&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s1">&#39;uniqueItems&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+            <span class="s1">&#39;items&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span>
+            <span class="p">},</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="p">}</span>
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;process-dependency-links&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;boolean&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;python-version&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;python3&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;enum&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;python2&#39;</span><span class="p">,</span> <span class="s1">&#39;python3&#39;</span><span class="p">]</span>
+        <span class="p">}</span>
+        <span class="n">schema</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;required&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">schema</span></div>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="PythonPlugin.get_pull_properties"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.python.PythonPlugin.get_pull_properties">[docs]</a>    <span class="k">def</span> <span class="nf">get_pull_properties</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="c1"># Inform Snapcraft of the properties associated with pulling. If these</span>
+        <span class="c1"># change in the YAML Snapcraft will consider the pull step dirty.</span>
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="s1">&#39;requirements&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;constraints&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;python-packages&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;python-version&#39;</span><span class="p">,</span>
+        <span class="p">]</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">plugin_build_packages</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">python_version</span> <span class="o">==</span> <span class="s1">&#39;python3&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span>
+                <span class="s1">&#39;python3-dev&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;python3-pip&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;python3-pkg-resources&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;python3-setuptools&#39;</span><span class="p">,</span>
+            <span class="p">]</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">python_version</span> <span class="o">==</span> <span class="s1">&#39;python2&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span>
+                <span class="s1">&#39;python-dev&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;python-pip&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;python-pkg-resources&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;python-setuptools&#39;</span><span class="p">,</span>
+            <span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">plugin_stage_packages</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">python_version</span> <span class="o">==</span> <span class="s1">&#39;python3&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;python3&#39;</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">python_version</span> <span class="o">==</span> <span class="s1">&#39;python2&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;python&#39;</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">stage_packages</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_python_command</span><span class="p">()):</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">stage_packages</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">plugin_stage_packages</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">stage_packages</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">options</span><span class="p">,</span> <span class="n">project</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">options</span><span class="p">,</span> <span class="n">project</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">build_packages</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plugin_build_packages</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_python_package_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">partdir</span><span class="p">,</span> <span class="s1">&#39;packages&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="PythonPlugin.pull"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.python.PythonPlugin.pull">[docs]</a>    <span class="k">def</span> <span class="nf">pull</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">pull</span><span class="p">()</span>
+
+        <span class="n">setup</span> <span class="o">=</span> <span class="s1">&#39;setup.py&#39;</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sourcedir</span><span class="p">):</span>
+            <span class="n">setup</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sourcedir</span><span class="p">,</span> <span class="s1">&#39;setup.py&#39;</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">simple_env_bzr</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="s1">&#39;bin&#39;</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_run_pip</span><span class="p">(</span><span class="n">setup</span><span class="p">,</span> <span class="n">download</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PythonPlugin.clean_pull"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.python.PythonPlugin.clean_pull">[docs]</a>    <span class="k">def</span> <span class="nf">clean_pull</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">clean_pull</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_python_package_dir</span><span class="p">):</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_python_package_dir</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_get_python_command</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">python_command</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;bin&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">python_version</span><span class="p">)</span>
+
+        <span class="c1"># staged as in project.stage_dir, not from a stage-packages entry</span>
+        <span class="c1"># in this part.</span>
+        <span class="n">staged_python</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="o">.</span><span class="n">stage_dir</span><span class="p">,</span> <span class="n">python_command</span><span class="p">)</span>
+        <span class="n">unstaged_python</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="n">python_command</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">staged_python</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">staged_python</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">unstaged_python</span>
+
+    <span class="k">def</span> <span class="nf">_install_pip</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">download</span><span class="p">):</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">env</span><span class="p">[</span><span class="s1">&#39;PYTHONUSERBASE&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">installdir</span>
+        <span class="c1"># since we are using an independent env we need to export this too</span>
+        <span class="c1"># TODO: figure out if we can move back to common.run</span>
+        <span class="n">env</span><span class="p">[</span><span class="s1">&#39;SNAPCRAFT_STAGE&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="o">.</span><span class="n">stage_dir</span>
+        <span class="n">env</span><span class="p">[</span><span class="s1">&#39;SNAPCRAFT_PART_INSTALL&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">installdir</span>
+
+        <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;pip&#39;</span><span class="p">,</span> <span class="s1">&#39;setuptools&#39;</span><span class="p">,</span> <span class="s1">&#39;wheel&#39;</span><span class="p">]</span>
+
+        <span class="n">pip_command</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_python_command</span><span class="p">(),</span> <span class="s1">&#39;-m&#39;</span><span class="p">,</span> <span class="s1">&#39;pip&#39;</span><span class="p">]</span>
+
+        <span class="c1"># If python_command it is not from stage we don&#39;t have pip, which means</span>
+        <span class="c1"># we are going to need to resort to the pip installed on the system</span>
+        <span class="c1"># that came from build-packages. This shouldn&#39;t be a problem as</span>
+        <span class="c1"># stage-packages and build-packages should match.</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_python_command</span><span class="p">()</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="o">.</span><span class="n">stage_dir</span><span class="p">):</span>
+            <span class="n">env</span><span class="p">[</span><span class="s1">&#39;PYTHONHOME&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;/usr&#39;</span>
+
+        <span class="n">pip</span> <span class="o">=</span> <span class="n">_Pip</span><span class="p">(</span><span class="n">exec_func</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">check_call</span><span class="p">,</span>
+                   <span class="n">runnable</span><span class="o">=</span><span class="n">pip_command</span><span class="p">,</span>
+                   <span class="n">package_dir</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_python_package_dir</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">,</span>
+                   <span class="n">extra_install_args</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;--ignore-installed&#39;</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="n">download</span><span class="p">:</span>
+            <span class="n">pip</span><span class="o">.</span><span class="n">download</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+        <span class="n">pip</span><span class="o">.</span><span class="n">install</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_get_build_env</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">env</span><span class="p">[</span><span class="s1">&#39;PYTHONUSERBASE&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">installdir</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_python_command</span><span class="p">()</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="o">.</span><span class="n">stage_dir</span><span class="p">):</span>
+            <span class="n">env</span><span class="p">[</span><span class="s1">&#39;PYTHONHOME&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="o">.</span><span class="n">stage_dir</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">env</span><span class="p">[</span><span class="s1">&#39;PYTHONHOME&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">)</span>
+
+        <span class="n">env</span><span class="p">[</span><span class="s1">&#39;PATH&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;{}:{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;bin&#39;</span><span class="p">),</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expandvars</span><span class="p">(</span><span class="s1">&#39;$PATH&#39;</span><span class="p">))</span>
+        <span class="n">headers</span> <span class="o">=</span> <span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">sep</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;include&#39;</span><span class="p">,</span> <span class="s1">&#39;{}*&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">python_version</span><span class="p">)))</span>
+        <span class="k">if</span> <span class="n">headers</span><span class="p">:</span>
+            <span class="n">env</span><span class="p">[</span><span class="s1">&#39;CPPFLAGS&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;-I{} {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">headers</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">env</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;CPPFLAGS&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">env</span>
+
+    <span class="k">def</span> <span class="nf">_get_commands</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">setup</span><span class="p">):</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">cwd</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">requirements</span><span class="p">:</span>
+            <span class="n">requirements</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">requirements</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">isurl</span><span class="p">(</span><span class="n">requirements</span><span class="p">):</span>
+                <span class="n">requirements</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sourcedir</span><span class="p">,</span>
+                                            <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">requirements</span><span class="p">)</span>
+
+            <span class="n">args</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s1">&#39;--requirement&#39;</span><span class="p">,</span> <span class="n">requirements</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">setup</span><span class="p">):</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)</span>
+            <span class="n">cwd</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">setup</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">python_packages</span><span class="p">:</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">python_packages</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">args</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="nb">dict</span><span class="p">(</span><span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">,</span> <span class="n">cwd</span><span class="o">=</span><span class="n">cwd</span><span class="p">)]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="nf">_run_pip</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">setup</span><span class="p">,</span> <span class="n">download</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_install_pip</span><span class="p">(</span><span class="n">download</span><span class="p">)</span>
+
+        <span class="n">env</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_build_env</span><span class="p">()</span>
+
+        <span class="n">pip_command</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_python_command</span><span class="p">(),</span> <span class="s1">&#39;-m&#39;</span><span class="p">,</span> <span class="s1">&#39;pip&#39;</span><span class="p">]</span>
+
+        <span class="n">constraints</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">constraints</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">isurl</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">constraints</span><span class="p">):</span>
+                <span class="n">constraints</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">constraints</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">constraints</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sourcedir</span><span class="p">,</span>
+                                           <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">constraints</span><span class="p">)</span>
+
+        <span class="n">pip</span> <span class="o">=</span> <span class="n">_Pip</span><span class="p">(</span><span class="n">exec_func</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">,</span>
+                   <span class="n">runnable</span><span class="o">=</span><span class="n">pip_command</span><span class="p">,</span>
+                   <span class="n">package_dir</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_python_package_dir</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">,</span>
+                   <span class="n">constraints</span><span class="o">=</span><span class="n">constraints</span><span class="p">,</span>
+                   <span class="n">dependency_links</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">process_dependency_links</span><span class="p">)</span>
+
+        <span class="n">commands</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_commands</span><span class="p">(</span><span class="n">setup</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">download</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">command</span> <span class="ow">in</span> <span class="n">commands</span><span class="p">:</span>
+                <span class="n">pip</span><span class="o">.</span><span class="n">download</span><span class="p">(</span><span class="o">**</span><span class="n">command</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">command</span> <span class="ow">in</span> <span class="n">commands</span><span class="p">:</span>
+                <span class="n">wheels</span> <span class="o">=</span> <span class="n">pip</span><span class="o">.</span><span class="n">wheel</span><span class="p">(</span><span class="o">**</span><span class="n">command</span><span class="p">)</span>
+                <span class="n">installed</span> <span class="o">=</span> <span class="n">pip</span><span class="o">.</span><span class="n">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_output</span><span class="p">)</span>
+                <span class="n">wheel_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">w</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                               <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">wheels</span><span class="p">]</span>
+                <span class="c1"># we want to avoid installing what is already provided in</span>
+                <span class="c1"># stage-packages</span>
+                <span class="n">need_install</span> <span class="o">=</span> <span class="p">[</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">wheel_names</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">installed</span><span class="p">]</span>
+                <span class="n">pip</span><span class="o">.</span><span class="n">install</span><span class="p">(</span><span class="n">need_install</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;--no-deps&#39;</span><span class="p">,</span> <span class="s1">&#39;--upgrade&#39;</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">_fix_permissions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">dirs</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+                <span class="n">_replicate_owner_mode</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">filename</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">dirname</span> <span class="ow">in</span> <span class="n">dirs</span><span class="p">:</span>
+                <span class="n">_replicate_owner_mode</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">dirname</span><span class="p">))</span>
+
+<div class="viewcode-block" id="PythonPlugin.build"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.python.PythonPlugin.build">[docs]</a>    <span class="k">def</span> <span class="nf">build</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">build</span><span class="p">()</span>
+
+        <span class="n">setup_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">builddir</span><span class="p">,</span> <span class="s1">&#39;setup.py&#39;</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">simple_env_bzr</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="s1">&#39;bin&#39;</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_run_pip</span><span class="p">(</span><span class="n">setup_file</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fix_permissions</span><span class="p">()</span>
+
+        <span class="c1"># Fix all shebangs to use the in-snap python.</span>
+        <span class="n">file_utils</span><span class="o">.</span><span class="n">replace_in_file</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;&#39;</span><span class="p">),</span>
+                                   <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;^#!.*python&#39;</span><span class="p">),</span>
+                                   <span class="s1">r&#39;#!/usr/bin/env python&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_setup_sitecustomize</span><span class="p">()</span></div>
+
+    <span class="k">def</span> <span class="nf">_setup_sitecustomize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># This avoids needing to leak PYTHONUSERBASE</span>
+        <span class="c1"># USER_SITE and USER_BASE default to base of SNAP for when used in</span>
+        <span class="c1"># runtime and to SNAPCRAFT_STAGE to support chaining dependencies</span>
+        <span class="c1"># when used with the `after` keyword.</span>
+        <span class="n">site_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_user_site_dir</span><span class="p">()</span>
+        <span class="n">sitecustomize_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_sitecustomize_path</span><span class="p">()</span>
+
+        <span class="c1"># Now create our sitecustomize</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">sitecustomize_path</span><span class="p">),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">sitecustomize_path</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">_SITECUSTOMIZE_TEMPLATE</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">site_dir</span><span class="o">=</span><span class="n">site_dir</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_get_user_site_dir</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">user_site_dir</span> <span class="o">=</span> <span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="s1">&#39;lib&#39;</span><span class="p">,</span> <span class="s1">&#39;{}*&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">python_version</span><span class="p">),</span>
+            <span class="s1">&#39;site-packages&#39;</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">user_site_dir</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">:]</span>
+
+    <span class="k">def</span> <span class="nf">_get_sitecustomize_path</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_python_command</span><span class="p">()</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="o">.</span><span class="n">stage_dir</span><span class="p">):</span>
+            <span class="n">base_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="o">.</span><span class="n">stage_dir</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">base_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">installdir</span>
+
+        <span class="n">python_site</span> <span class="o">=</span> <span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="n">base_dir</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;lib&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;{}*&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">python_version</span><span class="p">),</span>
+            <span class="s1">&#39;site.py&#39;</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">python_site_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">python_site</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span>
+                            <span class="n">python_site_dir</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">base_dir</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">:],</span>
+                            <span class="s1">&#39;sitecustomize.py&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="PythonPlugin.snap_fileset"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.python.PythonPlugin.snap_fileset">[docs]</a>    <span class="k">def</span> <span class="nf">snap_fileset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">fileset</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">snap_fileset</span><span class="p">()</span>
+        <span class="n">fileset</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;-bin/pip*&#39;</span><span class="p">)</span>
+        <span class="n">fileset</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;-bin/easy_install*&#39;</span><span class="p">)</span>
+        <span class="n">fileset</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;-bin/wheel&#39;</span><span class="p">)</span>
+        <span class="c1"># Holds all the .pyc files. It is a major cause of inter part</span>
+        <span class="c1"># conflict.</span>
+        <span class="n">fileset</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;-**/__pycache__&#39;</span><span class="p">)</span>
+        <span class="n">fileset</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;-**/*.pyc&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">fileset</span></div></div>
+
+
+<span class="k">class</span> <span class="nc">_Pip</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">exec_func</span><span class="p">,</span> <span class="n">runnable</span><span class="p">,</span> <span class="n">package_dir</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span>
+                 <span class="n">constraints</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">dependency_links</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">extra_install_args</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exec_func</span> <span class="o">=</span> <span class="n">exec_func</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">runnable</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_runnable</span> <span class="o">=</span> <span class="p">[</span><span class="n">runnable</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_runnable</span> <span class="o">=</span> <span class="n">runnable</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_package_dir</span> <span class="o">=</span> <span class="n">package_dir</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_env</span> <span class="o">=</span> <span class="n">env</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_extra_install_args</span> <span class="o">=</span> <span class="n">extra_install_args</span> <span class="ow">or</span> <span class="p">[]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_extra_pip_args</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">constraints</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_extra_pip_args</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s1">&#39;--constraint&#39;</span><span class="p">,</span> <span class="n">constraints</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="n">dependency_links</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_extra_pip_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--process-dependency-links&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">list</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exec_func</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a dict of installed python packages with versions.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">exec_func</span><span class="p">:</span>
+            <span class="n">exec_func</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exec_func</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="p">[</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_runnable</span><span class="p">,</span> <span class="s1">&#39;list&#39;</span><span class="p">]</span>
+
+        <span class="n">output</span> <span class="o">=</span> <span class="n">exec_func</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">)</span>
+        <span class="n">package_listing</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">version_regex</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">&#39;\((.+)\)&#39;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">output</span><span class="o">.</span><span class="n">splitlines</span><span class="p">():</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="n">version_regex</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">line</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">package_listing</span><span class="p">[</span><span class="n">line</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">package_listing</span>
+
+    <span class="k">def</span> <span class="nf">wheel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_runnable</span><span class="p">,</span> <span class="s1">&#39;wheel&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;--disable-pip-version-check&#39;</span><span class="p">,</span> <span class="s1">&#39;--no-index&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;--find-links&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_package_dir</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="n">cmd</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_extra_pip_args</span><span class="p">)</span>
+
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_package_dir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+        <span class="n">wheels</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">with</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">TemporaryDirectory</span><span class="p">()</span> <span class="k">as</span> <span class="n">temp_dir</span><span class="p">:</span>
+            <span class="n">cmd</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s1">&#39;--wheel-dir&#39;</span><span class="p">,</span> <span class="n">temp_dir</span><span class="p">])</span>
+            <span class="n">cmd</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_exec_func</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="n">wheels</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">temp_dir</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">wheel</span> <span class="ow">in</span> <span class="n">wheels</span><span class="p">:</span>
+                <span class="n">file_utils</span><span class="o">.</span><span class="n">link_or_copy</span><span class="p">(</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">temp_dir</span><span class="p">,</span> <span class="n">wheel</span><span class="p">),</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_package_dir</span><span class="p">,</span> <span class="n">wheel</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_package_dir</span><span class="p">,</span> <span class="n">wheel</span><span class="p">)</span> <span class="k">for</span> <span class="n">wheel</span> <span class="ow">in</span> <span class="n">wheels</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">download</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_runnable</span><span class="p">,</span> <span class="s1">&#39;download&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;--disable-pip-version-check&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;--dest&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_package_dir</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="n">cmd</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_extra_pip_args</span><span class="p">)</span>
+        <span class="n">cmd</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_package_dir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exec_func</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">install</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_runnable</span><span class="p">,</span> <span class="s1">&#39;install&#39;</span><span class="p">,</span> <span class="s1">&#39;--user&#39;</span><span class="p">,</span> <span class="s1">&#39;--no-compile&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;--disable-pip-version-check&#39;</span><span class="p">,</span> <span class="s1">&#39;--no-index&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;--find-links&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_package_dir</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="n">cmd</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_extra_pip_args</span><span class="p">)</span>
+        <span class="n">cmd</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_extra_install_args</span><span class="p">)</span>
+        <span class="n">cmd</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exec_func</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_replicate_owner_mode</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+        <span class="k">return</span>
+
+    <span class="n">file_mode</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">stat</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">st_mode</span>
+    <span class="n">new_mode</span> <span class="o">=</span> <span class="n">file_mode</span> <span class="o">&amp;</span> <span class="n">stat</span><span class="o">.</span><span class="n">S_IWUSR</span>
+    <span class="k">if</span> <span class="n">file_mode</span> <span class="o">&amp;</span> <span class="n">stat</span><span class="o">.</span><span class="n">S_IXUSR</span><span class="p">:</span>
+        <span class="n">new_mode</span> <span class="o">|=</span> <span class="n">stat</span><span class="o">.</span><span class="n">S_IXUSR</span> <span class="o">|</span> <span class="n">stat</span><span class="o">.</span><span class="n">S_IXGRP</span> <span class="o">|</span> <span class="n">stat</span><span class="o">.</span><span class="n">S_IXOTH</span>
+    <span class="k">if</span> <span class="n">file_mode</span> <span class="o">&amp;</span> <span class="n">stat</span><span class="o">.</span><span class="n">S_IRUSR</span><span class="p">:</span>
+        <span class="n">new_mode</span> <span class="o">|=</span> <span class="n">stat</span><span class="o">.</span><span class="n">S_IRUSR</span> <span class="o">|</span> <span class="n">stat</span><span class="o">.</span><span class="n">S_IRGRP</span> <span class="o">|</span> <span class="n">stat</span><span class="o">.</span><span class="n">S_IROTH</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">chmod</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">new_mode</span><span class="p">)</span>
+
+
+<span class="nd">@contextmanager</span>
+<div class="viewcode-block" id="simple_env_bzr"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.python.simple_env_bzr">[docs]</a><span class="k">def</span> <span class="nf">simple_env_bzr</span><span class="p">(</span><span class="n">bin_dir</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Create an appropriate environment to run bzr.</span>
+
+<span class="sd">       The python plugin sets up PYTHONUSERBASE and PYTHONHOME which</span>
+<span class="sd">       conflicts with bzr when using python3 as those two environment</span>
+<span class="sd">       variables will make bzr look for modules in the wrong location.</span>
+<span class="sd">       &quot;&quot;&quot;</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">bin_dir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">bzr_bin</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">bin_dir</span><span class="p">,</span> <span class="s1">&#39;bzr&#39;</span><span class="p">)</span>
+    <span class="n">real_bzr_bin</span> <span class="o">=</span> <span class="n">which</span><span class="p">(</span><span class="s1">&#39;bzr&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">real_bzr_bin</span><span class="p">:</span>
+        <span class="n">exec_line</span> <span class="o">=</span> <span class="s1">&#39;exec {} &quot;$@&quot;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">real_bzr_bin</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">exec_line</span> <span class="o">=</span> <span class="s1">&#39;echo bzr needs to be in PATH; exit 1&#39;</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">bzr_bin</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">dedent</span><span class="p">(</span>
+            <span class="sd">&quot;&quot;&quot;#!/bin/sh</span>
+<span class="sd">               unset PYTHONUSERBASE</span>
+<span class="sd">               unset PYTHONHOME</span>
+<span class="sd">               {}</span>
+<span class="sd">            &quot;&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">exec_line</span><span class="p">)))</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">chmod</span><span class="p">(</span><span class="n">bzr_bin</span><span class="p">,</span> <span class="mi">0</span><span class="n">o777</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">yield</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">bzr_bin</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">bin_dir</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">rmdir</span><span class="p">(</span><span class="n">bin_dir</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  <li><a href="../../snapcraft.html">snapcraft</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

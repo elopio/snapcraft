@@ -1,0 +1,7 @@
+snapcraft
+=========
+
+.. toctree::
+   :maxdepth: 4
+
+   snapcraft

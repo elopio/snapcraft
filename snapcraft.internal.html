@@ -1,0 +1,968 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.internal package &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="index.html" />
+    <link rel="up" title="snapcraft package" href="snapcraft.html" />
+    <link rel="next" title="snapcraft.internal.cache package" href="snapcraft.internal.cache.html" />
+    <link rel="prev" title="snapcraft.integrations.tests package" href="snapcraft.integrations.tests.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="snapcraft-internal-package">
+<h1>snapcraft.internal package<a class="headerlink" href="#snapcraft-internal-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="subpackages">
+<h2>Subpackages<a class="headerlink" href="#subpackages" title="Permalink to this headline">¶</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="snapcraft.internal.cache.html">snapcraft.internal.cache package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="snapcraft.internal.cache.html#module-snapcraft.internal.cache">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="snapcraft.internal.deltas.html">snapcraft.internal.deltas package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="snapcraft.internal.deltas.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="snapcraft.internal.deltas.html#module-snapcraft.internal.deltas.errors">snapcraft.internal.deltas.errors module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="snapcraft.internal.deltas.html#module-snapcraft.internal.deltas">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="snapcraft.internal.pluginhandler.html">snapcraft.internal.pluginhandler package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="snapcraft.internal.pluginhandler.html#subpackages">Subpackages</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="snapcraft.internal.pluginhandler.stage_package_grammar.html">snapcraft.internal.pluginhandler.stage_package_grammar package</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="snapcraft.internal.pluginhandler.stage_package_grammar.html#submodules">Submodules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="snapcraft.internal.pluginhandler.stage_package_grammar.html#module-snapcraft.internal.pluginhandler.stage_package_grammar.errors">snapcraft.internal.pluginhandler.stage_package_grammar.errors module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="snapcraft.internal.pluginhandler.stage_package_grammar.html#module-snapcraft.internal.pluginhandler.stage_package_grammar">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="snapcraft.internal.pluginhandler.html#module-snapcraft.internal.pluginhandler">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="snapcraft.internal.sources.html">snapcraft.internal.sources package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="snapcraft.internal.sources.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="snapcraft.internal.sources.html#module-snapcraft.internal.sources.errors">snapcraft.internal.sources.errors module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="snapcraft.internal.sources.html#module-snapcraft.internal.sources">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="snapcraft.internal.states.html">snapcraft.internal.states package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="snapcraft.internal.states.html#module-snapcraft.internal.states">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-snapcraft.internal.common">
+<span id="snapcraft-internal-common-module"></span><h2>snapcraft.internal.common module<a class="headerlink" href="#module-snapcraft.internal.common" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="snapcraft.internal.common.assemble_env">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">assemble_env</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#assemble_env"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.assemble_env" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.format_output_in_columns">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">format_output_in_columns</code><span class="sig-paren">(</span><em>elements_list</em>, <em>max_width=120</em>, <em>num_col_spaces=2</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#format_output_in_columns"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.format_output_in_columns" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a formatted list of strings ready to be printed line by line</p>
+<p>elements_list is the list of elements ready to be printed on the output
+max_width is the number of caracters the output shouldn&#8217;t exceed
+num_col_spaces is the number of spaces set between 2 columns</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.format_snap_name">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">format_snap_name</code><span class="sig-paren">(</span><em>snap</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#format_snap_name"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.format_snap_name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.get_arch">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">get_arch</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#get_arch"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.get_arch" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.get_arch_triplet">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">get_arch_triplet</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#get_arch_triplet"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.get_arch_triplet" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.get_core_path">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">get_core_path</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#get_core_path"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.get_core_path" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the path to the core snap.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.get_include_paths">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">get_include_paths</code><span class="sig-paren">(</span><em>root</em>, <em>arch_triplet</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#get_include_paths"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.get_include_paths" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.get_librariesdir">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">get_librariesdir</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#get_librariesdir"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.get_librariesdir" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.get_library_paths">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">get_library_paths</code><span class="sig-paren">(</span><em>root</em>, <em>arch_triplet</em>, <em>existing_only=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#get_library_paths"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.get_library_paths" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns common library paths for a snap.</p>
+<p>If existing_only is set the paths returned must exist for
+the root that was set.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.get_parallel_build_count">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">get_parallel_build_count</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#get_parallel_build_count"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.get_parallel_build_count" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.get_pkg_config_paths">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">get_pkg_config_paths</code><span class="sig-paren">(</span><em>root</em>, <em>arch_triplet</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#get_pkg_config_paths"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.get_pkg_config_paths" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.get_plugindir">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">get_plugindir</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#get_plugindir"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.get_plugindir" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.get_python2_path">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">get_python2_path</code><span class="sig-paren">(</span><em>root</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#get_python2_path"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.get_python2_path" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a valid PYTHONPATH or raise an exception.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.get_schemadir">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">get_schemadir</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#get_schemadir"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.get_schemadir" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.get_terminal_width">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">get_terminal_width</code><span class="sig-paren">(</span><em>max_width=120</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#get_terminal_width"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.get_terminal_width" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.get_tourdir">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">get_tourdir</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#get_tourdir"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.get_tourdir" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.get_url_scheme">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">get_url_scheme</code><span class="sig-paren">(</span><em>url</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#get_url_scheme"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.get_url_scheme" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.isurl">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">isurl</code><span class="sig-paren">(</span><em>url</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#isurl"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.isurl" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.reset_env">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">reset_env</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#reset_env"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.reset_env" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.run">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">run</code><span class="sig-paren">(</span><em>cmd</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.run" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.run_output">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">run_output</code><span class="sig-paren">(</span><em>cmd</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#run_output"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.run_output" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.set_librariesdir">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">set_librariesdir</code><span class="sig-paren">(</span><em>librariesdir</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#set_librariesdir"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.set_librariesdir" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.set_plugindir">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">set_plugindir</code><span class="sig-paren">(</span><em>plugindir</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#set_plugindir"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.set_plugindir" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.set_schemadir">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">set_schemadir</code><span class="sig-paren">(</span><em>schemadir</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#set_schemadir"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.set_schemadir" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.common.set_tourdir">
+<code class="descclassname">snapcraft.internal.common.</code><code class="descname">set_tourdir</code><span class="sig-paren">(</span><em>tourdir</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/common.html#set_tourdir"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.common.set_tourdir" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.internal.deprecations">
+<span id="snapcraft-internal-deprecations-module"></span><h2>snapcraft.internal.deprecations module<a class="headerlink" href="#module-snapcraft.internal.deprecations" title="Permalink to this headline">¶</a></h2>
+<p>Handle surfacing deprecation notices.</p>
+<p>When a new deprecation has occurred, write a Deprecation Notice for it on the
+wiki, assigning it the next ID (DN1, DN2, etc.). Then add that ID along with a
+brief message for surfacing to the user into the _DEPRECATION_MESSAGES in this
+module.</p>
+<dl class="function">
+<dt id="snapcraft.internal.deprecations.handle_deprecation_notice">
+<code class="descclassname">snapcraft.internal.deprecations.</code><code class="descname">handle_deprecation_notice</code><span class="sig-paren">(</span><em>id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/deprecations.html#handle_deprecation_notice"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.deprecations.handle_deprecation_notice" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.internal.dirs">
+<span id="snapcraft-internal-dirs-module"></span><h2>snapcraft.internal.dirs module<a class="headerlink" href="#module-snapcraft.internal.dirs" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="snapcraft.internal.dirs.setup_dirs">
+<code class="descclassname">snapcraft.internal.dirs.</code><code class="descname">setup_dirs</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/dirs.html#setup_dirs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.dirs.setup_dirs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Ensure that snapcraft.common plugindir is setup correctly
+and support running out of a development snapshot</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.internal.errors">
+<span id="snapcraft-internal-errors-module"></span><h2>snapcraft.internal.errors module<a class="headerlink" href="#module-snapcraft.internal.errors" title="Permalink to this headline">¶</a></h2>
+<dl class="exception">
+<dt id="snapcraft.internal.errors.DuplicateAliasError">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.errors.</code><code class="descname">DuplicateAliasError</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/errors.html#DuplicateAliasError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.errors.DuplicateAliasError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.internal.errors.SnapcraftError" title="snapcraft.internal.errors.SnapcraftError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.internal.errors.SnapcraftError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.internal.errors.DuplicateAliasError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Multiple parts have the same alias defined: {aliases!r}'</em><a class="headerlink" href="#snapcraft.internal.errors.DuplicateAliasError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.internal.errors.InvalidWikiEntryError">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.errors.</code><code class="descname">InvalidWikiEntryError</code><span class="sig-paren">(</span><em>error=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/errors.html#InvalidWikiEntryError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.errors.InvalidWikiEntryError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.internal.errors.SnapcraftError" title="snapcraft.internal.errors.SnapcraftError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.internal.errors.SnapcraftError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.internal.errors.InvalidWikiEntryError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Invalid wiki entry: {error!r}'</em><a class="headerlink" href="#snapcraft.internal.errors.InvalidWikiEntryError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.internal.errors.MissingCommandError">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.errors.</code><code class="descname">MissingCommandError</code><span class="sig-paren">(</span><em>required_commands</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/errors.html#MissingCommandError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.errors.MissingCommandError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.internal.errors.SnapcraftError" title="snapcraft.internal.errors.SnapcraftError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.internal.errors.SnapcraftError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.internal.errors.MissingCommandError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'One or more required commands are missing, please install: {required_commands!r}'</em><a class="headerlink" href="#snapcraft.internal.errors.MissingCommandError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.internal.errors.MissingGadgetError">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.errors.</code><code class="descname">MissingGadgetError</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/errors.html#MissingGadgetError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.errors.MissingGadgetError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.internal.errors.SnapcraftError" title="snapcraft.internal.errors.SnapcraftError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.internal.errors.SnapcraftError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.internal.errors.MissingGadgetError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'When creating gadget snaps you are required to provide a gadget.yaml file\nin the root of your snapcraft project\n\nRead more about gadget snaps and the gadget.yaml on:\nhttps://github.com/snapcore/snapd/wiki/Gadget-snap'</em><a class="headerlink" href="#snapcraft.internal.errors.MissingGadgetError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.internal.errors.MissingState">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.errors.</code><code class="descname">MissingState</code><a class="reference internal" href="_modules/snapcraft/internal/errors.html#MissingState"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.errors.MissingState" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">Exception</span></code></p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.internal.errors.PluginError">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.errors.</code><code class="descname">PluginError</code><a class="reference internal" href="_modules/snapcraft/internal/errors.html#PluginError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.errors.PluginError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">Exception</span></code></p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.internal.errors.PrimeFileConflictError">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.errors.</code><code class="descname">PrimeFileConflictError</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/errors.html#PrimeFileConflictError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.errors.PrimeFileConflictError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.internal.errors.SnapcraftError" title="snapcraft.internal.errors.SnapcraftError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.internal.errors.SnapcraftError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.internal.errors.PrimeFileConflictError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'The following files have been excluded by the `stage` keyword, but included by the `prime` keyword: {fileset!r}'</em><a class="headerlink" href="#snapcraft.internal.errors.PrimeFileConflictError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.internal.errors.RequiredCommandFailure">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.errors.</code><code class="descname">RequiredCommandFailure</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/errors.html#RequiredCommandFailure"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.errors.RequiredCommandFailure" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.internal.errors.SnapcraftError" title="snapcraft.internal.errors.SnapcraftError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.internal.errors.SnapcraftError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.internal.errors.RequiredCommandFailure.fmt">
+<code class="descname">fmt</code><em class="property"> = '{command!r} failed.'</em><a class="headerlink" href="#snapcraft.internal.errors.RequiredCommandFailure.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.internal.errors.RequiredCommandNotFound">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.errors.</code><code class="descname">RequiredCommandNotFound</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/errors.html#RequiredCommandNotFound"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.errors.RequiredCommandNotFound" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.internal.errors.SnapcraftError" title="snapcraft.internal.errors.SnapcraftError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.internal.errors.SnapcraftError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.internal.errors.RequiredCommandNotFound.fmt">
+<code class="descname">fmt</code><em class="property"> = '{cmd_list[0]!r} not found.'</em><a class="headerlink" href="#snapcraft.internal.errors.RequiredCommandNotFound.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.internal.errors.RequiredPathDoesNotExist">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.errors.</code><code class="descname">RequiredPathDoesNotExist</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/errors.html#RequiredPathDoesNotExist"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.errors.RequiredPathDoesNotExist" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.internal.errors.SnapcraftError" title="snapcraft.internal.errors.SnapcraftError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.internal.errors.SnapcraftError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.internal.errors.RequiredPathDoesNotExist.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Required path does not exist: {path!r}'</em><a class="headerlink" href="#snapcraft.internal.errors.RequiredPathDoesNotExist.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.internal.errors.SnapcraftEnvironmentError">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.errors.</code><code class="descname">SnapcraftEnvironmentError</code><a class="reference internal" href="_modules/snapcraft/internal/errors.html#SnapcraftEnvironmentError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.errors.SnapcraftEnvironmentError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">Exception</span></code></p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.internal.errors.SnapcraftError">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.errors.</code><code class="descname">SnapcraftError</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/errors.html#SnapcraftError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.errors.SnapcraftError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">Exception</span></code></p>
+<p>Base class for all snapcraft exceptions.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Variables:</th><td class="field-body"><a class="reference internal" href="snapcraft.storeapi.html#snapcraft.storeapi.errors.StoreChannelClosingError.fmt" title="snapcraft.storeapi.errors.StoreChannelClosingError.fmt"><strong>fmt</strong></a> &#8211; A format string that daughter classes override</td>
+</tr>
+</tbody>
+</table>
+<dl class="attribute">
+<dt id="snapcraft.internal.errors.SnapcraftError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Daughter classes should redefine this'</em><a class="headerlink" href="#snapcraft.internal.errors.SnapcraftError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.internal.errors.SnapcraftPartConflictError">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.errors.</code><code class="descname">SnapcraftPartConflictError</code><span class="sig-paren">(</span><em>*</em>, <em>part_name</em>, <em>other_part_name</em>, <em>conflict_files</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/errors.html#SnapcraftPartConflictError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.errors.SnapcraftPartConflictError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.internal.errors.SnapcraftError" title="snapcraft.internal.errors.SnapcraftError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.internal.errors.SnapcraftError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.internal.errors.SnapcraftPartConflictError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Parts {other_part_name!r} and {part_name!r} have the following file paths in common which have different contents:\n{file_paths}\n\nSnapcraft offers some capabilities to solve this by use of the following keywords:\n    - `filesets`\n    - `stage`\n    - `snap`\n    - `organize`\n\nLearn more about these part keywords by running `snapcraft help plugins`'</em><a class="headerlink" href="#snapcraft.internal.errors.SnapcraftPartConflictError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.internal.errors.SnapcraftPartMissingError">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.errors.</code><code class="descname">SnapcraftPartMissingError</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/errors.html#SnapcraftPartMissingError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.errors.SnapcraftPartMissingError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.internal.errors.SnapcraftError" title="snapcraft.internal.errors.SnapcraftError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.internal.errors.SnapcraftError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.internal.errors.SnapcraftPartMissingError.fmt">
+<code class="descname">fmt</code><em class="property"> = 'Cannot find the definition for part {part_name!r}.\nIt may be a remote part, run `snapcraft update` to refresh the remote parts cache.'</em><a class="headerlink" href="#snapcraft.internal.errors.SnapcraftPartMissingError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.internal.errors.SnapcraftSchemaError">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.errors.</code><code class="descname">SnapcraftSchemaError</code><span class="sig-paren">(</span><em>message</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/errors.html#SnapcraftSchemaError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.errors.SnapcraftSchemaError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.internal.errors.SnapcraftError" title="snapcraft.internal.errors.SnapcraftError"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.internal.errors.SnapcraftError</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.internal.errors.SnapcraftSchemaError.fmt">
+<code class="descname">fmt</code><em class="property"> = '{message}'</em><a class="headerlink" href="#snapcraft.internal.errors.SnapcraftSchemaError.fmt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.internal.errors.SnapcraftSchemaError.from_validation_error">
+<em class="property">classmethod </em><code class="descname">from_validation_error</code><span class="sig-paren">(</span><em>error</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/errors.html#SnapcraftSchemaError.from_validation_error"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.errors.SnapcraftSchemaError.from_validation_error" title="Permalink to this definition">¶</a></dt>
+<dd><p>Take a jsonschema.ValidationError and create a SnapcraftSchemaError.</p>
+<p>The validation errors coming from jsonschema are a nightmare. This
+class tries to make them a bit more understandable.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.internal.indicators">
+<span id="snapcraft-internal-indicators-module"></span><h2>snapcraft.internal.indicators module<a class="headerlink" href="#module-snapcraft.internal.indicators" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="snapcraft.internal.indicators.UrllibDownloader">
+<em class="property">class </em><code class="descclassname">snapcraft.internal.indicators.</code><code class="descname">UrllibDownloader</code><span class="sig-paren">(</span><em>uri</em>, <em>destination</em>, <em>message=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/indicators.html#UrllibDownloader"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.indicators.UrllibDownloader" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>This is a facility to download an uri with nice progress bars.</p>
+<dl class="method">
+<dt id="snapcraft.internal.indicators.UrllibDownloader.download">
+<code class="descname">download</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/indicators.html#UrllibDownloader.download"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.indicators.UrllibDownloader.download" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.indicators.download_requests_stream">
+<code class="descclassname">snapcraft.internal.indicators.</code><code class="descname">download_requests_stream</code><span class="sig-paren">(</span><em>request_stream</em>, <em>destination</em>, <em>message=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/indicators.html#download_requests_stream"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.indicators.download_requests_stream" title="Permalink to this definition">¶</a></dt>
+<dd><p>This is a facility to download a request with nice progress bars.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.indicators.download_urllib_source">
+<code class="descclassname">snapcraft.internal.indicators.</code><code class="descname">download_urllib_source</code><span class="sig-paren">(</span><em>uri</em>, <em>destination</em>, <em>message=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/indicators.html#download_urllib_source"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.indicators.download_urllib_source" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.indicators.is_dumb_terminal">
+<code class="descclassname">snapcraft.internal.indicators.</code><code class="descname">is_dumb_terminal</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/indicators.html#is_dumb_terminal"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.indicators.is_dumb_terminal" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return True if on a dumb terminal.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.internal.libraries">
+<span id="snapcraft-internal-libraries-module"></span><h2>snapcraft.internal.libraries module<a class="headerlink" href="#module-snapcraft.internal.libraries" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="snapcraft.internal.libraries.determine_ld_library_path">
+<code class="descclassname">snapcraft.internal.libraries.</code><code class="descname">determine_ld_library_path</code><span class="sig-paren">(</span><em>root</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/libraries.html#determine_ld_library_path"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.libraries.determine_ld_library_path" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.libraries.get_dependencies">
+<code class="descclassname">snapcraft.internal.libraries.</code><code class="descname">get_dependencies</code><span class="sig-paren">(</span><em>elf</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/libraries.html#get_dependencies"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.libraries.get_dependencies" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a list of libraries that are needed to satisfy elf&#8217;s runtime.</p>
+<p>This may include libraries contained within the project.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.internal.lifecycle">
+<span id="snapcraft-internal-lifecycle-module"></span><h2>snapcraft.internal.lifecycle module<a class="headerlink" href="#module-snapcraft.internal.lifecycle" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="snapcraft.internal.lifecycle.clean">
+<code class="descclassname">snapcraft.internal.lifecycle.</code><code class="descname">clean</code><span class="sig-paren">(</span><em>project_options</em>, <em>parts</em>, <em>step=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/lifecycle.html#clean"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.lifecycle.clean" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.lifecycle.cleanbuild">
+<code class="descclassname">snapcraft.internal.lifecycle.</code><code class="descname">cleanbuild</code><span class="sig-paren">(</span><em>project_options</em>, <em>remote=''</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/lifecycle.html#cleanbuild"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.lifecycle.cleanbuild" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.lifecycle.execute">
+<code class="descclassname">snapcraft.internal.lifecycle.</code><code class="descname">execute</code><span class="sig-paren">(</span><em>step</em>, <em>project_options</em>, <em>part_names=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/lifecycle.html#execute"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.lifecycle.execute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Execute until step in the lifecycle for part_names or all parts.</p>
+<p>Lifecycle execution will happen for each step iterating over all
+the available parts, if part_names is specified, only those parts
+will run.</p>
+<p>If one of the parts to execute has an after keyword, execution is
+forced until the stage step for such part. If part_names was provided
+and after is not in this set, an exception will be raised.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>step</strong> (<em>str</em>) &#8211; A valid step in the lifecycle: pull, build, prime or snap.</li>
+<li><strong>project_options</strong> &#8211; Runtime options for the project.</li>
+<li><strong>part_names</strong> (<em>list</em>) &#8211; A list of parts to execute the lifecycle on.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><p class="first"><strong>RuntimeError</strong> &#8211; If a prerequesite of the part needs to be staged
+and such part is not in the list of parts to iterate
+over.</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">A dict with the snap name, version, type and architectures.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.lifecycle.init">
+<code class="descclassname">snapcraft.internal.lifecycle.</code><code class="descname">init</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/lifecycle.html#init"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.lifecycle.init" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialize a snapcraft project.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.lifecycle.snap">
+<code class="descclassname">snapcraft.internal.lifecycle.</code><code class="descname">snap</code><span class="sig-paren">(</span><em>project_options</em>, <em>directory=None</em>, <em>output=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/lifecycle.html#snap"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.lifecycle.snap" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.internal.log">
+<span id="snapcraft-internal-log-module"></span><h2>snapcraft.internal.log module<a class="headerlink" href="#module-snapcraft.internal.log" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="snapcraft.internal.log.configure">
+<code class="descclassname">snapcraft.internal.log.</code><code class="descname">configure</code><span class="sig-paren">(</span><em>logger_name=None</em>, <em>log_level=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/log.html#configure"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.log.configure" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.internal.lxd">
+<span id="snapcraft-internal-lxd-module"></span><h2>snapcraft.internal.lxd module<a class="headerlink" href="#module-snapcraft.internal.lxd" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="snapcraft.internal.lxd.Cleanbuilder">
+<em class="property">class </em><code class="descclassname">snapcraft.internal.lxd.</code><code class="descname">Cleanbuilder</code><span class="sig-paren">(</span><em>snap_output</em>, <em>tar_filename</em>, <em>project_options</em>, <em>remote=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/lxd.html#Cleanbuilder"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.lxd.Cleanbuilder" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dl class="method">
+<dt id="snapcraft.internal.lxd.Cleanbuilder.execute">
+<code class="descname">execute</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/lxd.html#Cleanbuilder.execute"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.lxd.Cleanbuilder.execute" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.internal.meta">
+<span id="snapcraft-internal-meta-module"></span><h2>snapcraft.internal.meta module<a class="headerlink" href="#module-snapcraft.internal.meta" title="Permalink to this headline">¶</a></h2>
+<dl class="exception">
+<dt id="snapcraft.internal.meta.CommandError">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.meta.</code><code class="descname">CommandError</code><a class="reference internal" href="_modules/snapcraft/internal/meta.html#CommandError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.meta.CommandError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">Exception</span></code></p>
+</dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.meta.create_snap_packaging">
+<code class="descclassname">snapcraft.internal.meta.</code><code class="descname">create_snap_packaging</code><span class="sig-paren">(</span><em>config_data</em>, <em>project_options</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/meta.html#create_snap_packaging"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.meta.create_snap_packaging" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create snap.yaml and related assets in meta.</p>
+<p>Create the meta directory and provision it with snap.yaml in the snap dir
+using information from config_data. Also copy in the local &#8216;snap&#8217;
+directory, and generate wrappers for hooks coming from parts.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>config_data</strong> (<em>dict</em>) &#8211; project values defined in snapcraft.yaml.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">meta_dir.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.internal.parser">
+<span id="snapcraft-internal-parser-module"></span><h2>snapcraft.internal.parser module<a class="headerlink" href="#module-snapcraft.internal.parser" title="Permalink to this headline">¶</a></h2>
+<p>snapcraft-parser</p>
+<p>Parse a wiki index of parts and output formatted YAML for use by &#8216;snapcraft&#8217;.
+&#8216;snapcraft&#8217; uses the YAML to find non-local parts referred to by a project&#8217;s
+&#8216;snapcraft.yaml&#8217; file.  See &#8216;snapcraft update&#8217; and &#8216;snapcraft define&#8217; for more
+details.</p>
+<dl class="docutils">
+<dt>Usage:</dt>
+<dd>snapcraft-parser [options]</dd>
+<dt>Options:</dt>
+<dd><p class="first">-h &#8211;help                             show this help message and exit
+-v &#8211;version                          show program version and exit
+-d &#8211;debug                            print debug information while executing</p>
+<blockquote>
+<div>(including backtraces)</div></blockquote>
+<dl class="last docutils">
+<dt>-i &#8211;index=&lt;filepath&gt;                 a file containing a part index.</dt>
+<dd>(&#8216;<a class="reference external" href="http://wiki.ubuntu.com/snapcraft/parts?action=raw">http://wiki.ubuntu.com/snapcraft/parts?action=raw</a>&#8216;)</dd>
+<dt>-o &#8211;output=&lt;filename&gt;                where to write the parsed parts list.</dt>
+<dd>(&#8216;snap-parts.yaml&#8217;)</dd>
+</dl>
+</dd>
+</dl>
+<dl class="exception">
+<dt id="snapcraft.internal.parser.BadSnapcraftYAMLError">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.parser.</code><code class="descname">BadSnapcraftYAMLError</code><a class="reference internal" href="_modules/snapcraft/internal/parser.html#BadSnapcraftYAMLError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.parser.BadSnapcraftYAMLError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">Exception</span></code></p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.internal.parser.MissingSnapcraftYAMLError">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.parser.</code><code class="descname">MissingSnapcraftYAMLError</code><a class="reference internal" href="_modules/snapcraft/internal/parser.html#MissingSnapcraftYAMLError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.parser.MissingSnapcraftYAMLError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">Exception</span></code></p>
+</dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.parser.main">
+<code class="descclassname">snapcraft.internal.parser.</code><code class="descname">main</code><span class="sig-paren">(</span><em>argv=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/parser.html#main"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.parser.main" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.parser.missing_parts_set">
+<code class="descclassname">snapcraft.internal.parser.</code><code class="descname">missing_parts_set</code><span class="sig-paren">(</span><em>parts</em>, <em>known_parts</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/parser.html#missing_parts_set"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.parser.missing_parts_set" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.parser.run">
+<code class="descclassname">snapcraft.internal.parser.</code><code class="descname">run</code><span class="sig-paren">(</span><em>args</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/parser.html#run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.parser.run" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.internal.parts">
+<span id="snapcraft-internal-parts-module"></span><h2>snapcraft.internal.parts module<a class="headerlink" href="#module-snapcraft.internal.parts" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="snapcraft.internal.parts.PartsConfig">
+<em class="property">class </em><code class="descclassname">snapcraft.internal.parts.</code><code class="descname">PartsConfig</code><span class="sig-paren">(</span><em>parts</em>, <em>project_options</em>, <em>validator</em>, <em>build_tools</em>, <em>snapcraft_yaml</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/parts.html#PartsConfig"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.parts.PartsConfig" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dl class="method">
+<dt id="snapcraft.internal.parts.PartsConfig.build_env_for_part">
+<code class="descname">build_env_for_part</code><span class="sig-paren">(</span><em>part</em>, <em>root_part=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/parts.html#PartsConfig.build_env_for_part"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.parts.PartsConfig.build_env_for_part" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a build env of all the part&#8217;s dependencies.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.parts.PartsConfig.clean_part">
+<code class="descname">clean_part</code><span class="sig-paren">(</span><em>part_name</em>, <em>staged_state</em>, <em>primed_state</em>, <em>step</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/parts.html#PartsConfig.clean_part"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.parts.PartsConfig.clean_part" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.parts.PartsConfig.get_dependents">
+<code class="descname">get_dependents</code><span class="sig-paren">(</span><em>part_name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/parts.html#PartsConfig.get_dependents"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.parts.PartsConfig.get_dependents" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a set of all the parts that depend upon part_name.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.parts.PartsConfig.get_part">
+<code class="descname">get_part</code><span class="sig-paren">(</span><em>part_name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/parts.html#PartsConfig.get_part"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.parts.PartsConfig.get_part" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.parts.PartsConfig.get_prereqs">
+<code class="descname">get_prereqs</code><span class="sig-paren">(</span><em>part_name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/parts.html#PartsConfig.get_prereqs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.parts.PartsConfig.get_prereqs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a set with all of part_names&#8217; prerequisites.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.parts.PartsConfig.load_plugin">
+<code class="descname">load_plugin</code><span class="sig-paren">(</span><em>part_name</em>, <em>plugin_name</em>, <em>part_properties</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/parts.html#PartsConfig.load_plugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.parts.PartsConfig.load_plugin" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="snapcraft.internal.parts.PartsConfig.part_names">
+<code class="descname">part_names</code><a class="headerlink" href="#snapcraft.internal.parts.PartsConfig.part_names" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.parts.PartsConfig.validate">
+<code class="descname">validate</code><span class="sig-paren">(</span><em>part_names</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/parts.html#PartsConfig.validate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.parts.PartsConfig.validate" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.internal.parts.SnapcraftLogicError">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.parts.</code><code class="descname">SnapcraftLogicError</code><span class="sig-paren">(</span><em>message</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/parts.html#SnapcraftLogicError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.parts.SnapcraftLogicError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">Exception</span></code></p>
+<dl class="attribute">
+<dt id="snapcraft.internal.parts.SnapcraftLogicError.message">
+<code class="descname">message</code><a class="headerlink" href="#snapcraft.internal.parts.SnapcraftLogicError.message" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.parts.define">
+<code class="descclassname">snapcraft.internal.parts.</code><code class="descname">define</code><span class="sig-paren">(</span><em>part_name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/parts.html#define"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.parts.define" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.parts.get_remote_parts">
+<code class="descclassname">snapcraft.internal.parts.</code><code class="descname">get_remote_parts</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/parts.html#get_remote_parts"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.parts.get_remote_parts" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.parts.search">
+<code class="descclassname">snapcraft.internal.parts.</code><code class="descname">search</code><span class="sig-paren">(</span><em>part_match</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/parts.html#search"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.parts.search" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.parts.update">
+<code class="descclassname">snapcraft.internal.parts.</code><code class="descname">update</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/parts.html#update"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.parts.update" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.internal.project_loader">
+<span id="snapcraft-internal-project-loader-module"></span><h2>snapcraft.internal.project_loader module<a class="headerlink" href="#module-snapcraft.internal.project_loader" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="snapcraft.internal.project_loader.Config">
+<em class="property">class </em><code class="descclassname">snapcraft.internal.project_loader.</code><code class="descname">Config</code><span class="sig-paren">(</span><em>project_options=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/project_loader.html#Config"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.project_loader.Config" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dl class="attribute">
+<dt id="snapcraft.internal.project_loader.Config.all_parts">
+<code class="descname">all_parts</code><a class="headerlink" href="#snapcraft.internal.project_loader.Config.all_parts" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.project_loader.Config.get_project_state">
+<code class="descname">get_project_state</code><span class="sig-paren">(</span><em>step</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/project_loader.html#Config.get_project_state"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.project_loader.Config.get_project_state" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a dict of states for the given step of each part.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="snapcraft.internal.project_loader.Config.part_names">
+<code class="descname">part_names</code><a class="headerlink" href="#snapcraft.internal.project_loader.Config.part_names" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.project_loader.Config.project_env">
+<code class="descname">project_env</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/project_loader.html#Config.project_env"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.project_loader.Config.project_env" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.project_loader.Config.snap_env">
+<code class="descname">snap_env</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/project_loader.html#Config.snap_env"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.project_loader.Config.snap_env" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.project_loader.Config.stage_env">
+<code class="descname">stage_env</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/project_loader.html#Config.stage_env"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.project_loader.Config.stage_env" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.internal.project_loader.InvalidEpochError">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.project_loader.</code><code class="descname">InvalidEpochError</code><a class="reference internal" href="_modules/snapcraft/internal/project_loader.html#InvalidEpochError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.project_loader.InvalidEpochError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">Exception</span></code></p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.internal.project_loader.PluginNotDefinedError">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.project_loader.</code><code class="descname">PluginNotDefinedError</code><span class="sig-paren">(</span><em>part</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/project_loader.html#PluginNotDefinedError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.project_loader.PluginNotDefinedError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">Exception</span></code></p>
+<dl class="attribute">
+<dt id="snapcraft.internal.project_loader.PluginNotDefinedError.part">
+<code class="descname">part</code><a class="headerlink" href="#snapcraft.internal.project_loader.PluginNotDefinedError.part" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.internal.project_loader.SnapcraftYamlFileError">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.project_loader.</code><code class="descname">SnapcraftYamlFileError</code><span class="sig-paren">(</span><em>yaml_file</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/project_loader.html#SnapcraftYamlFileError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.project_loader.SnapcraftYamlFileError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">Exception</span></code></p>
+<dl class="attribute">
+<dt id="snapcraft.internal.project_loader.SnapcraftYamlFileError.file">
+<code class="descname">file</code><a class="headerlink" href="#snapcraft.internal.project_loader.SnapcraftYamlFileError.file" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.project_loader.get_snapcraft_yaml">
+<code class="descclassname">snapcraft.internal.project_loader.</code><code class="descname">get_snapcraft_yaml</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/project_loader.html#get_snapcraft_yaml"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.project_loader.get_snapcraft_yaml" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.project_loader.load_config">
+<code class="descclassname">snapcraft.internal.project_loader.</code><code class="descname">load_config</code><span class="sig-paren">(</span><em>project_options=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/project_loader.html#load_config"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.project_loader.load_config" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.project_loader.replace_attr">
+<code class="descclassname">snapcraft.internal.project_loader.</code><code class="descname">replace_attr</code><span class="sig-paren">(</span><em>attr</em>, <em>replacements</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/project_loader.html#replace_attr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.project_loader.replace_attr" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.internal.repo">
+<span id="snapcraft-internal-repo-module"></span><h2>snapcraft.internal.repo module<a class="headerlink" href="#module-snapcraft.internal.repo" title="Permalink to this headline">¶</a></h2>
+<dl class="exception">
+<dt id="snapcraft.internal.repo.PackageNotFoundError">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.repo.</code><code class="descname">PackageNotFoundError</code><span class="sig-paren">(</span><em>package_name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/repo.html#PackageNotFoundError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.repo.PackageNotFoundError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">Exception</span></code></p>
+<dl class="attribute">
+<dt id="snapcraft.internal.repo.PackageNotFoundError.message">
+<code class="descname">message</code><a class="headerlink" href="#snapcraft.internal.repo.PackageNotFoundError.message" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="snapcraft.internal.repo.Ubuntu">
+<em class="property">class </em><code class="descclassname">snapcraft.internal.repo.</code><code class="descname">Ubuntu</code><span class="sig-paren">(</span><em>rootdir</em>, <em>recommends=False</em>, <em>sources=None</em>, <em>project_options=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/repo.html#Ubuntu"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.repo.Ubuntu" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dl class="method">
+<dt id="snapcraft.internal.repo.Ubuntu.get">
+<code class="descname">get</code><span class="sig-paren">(</span><em>package_names</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/repo.html#Ubuntu.get"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.repo.Ubuntu.get" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.repo.Ubuntu.is_valid">
+<code class="descname">is_valid</code><span class="sig-paren">(</span><em>package_name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/repo.html#Ubuntu.is_valid"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.repo.Ubuntu.is_valid" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.internal.repo.Ubuntu.unpack">
+<code class="descname">unpack</code><span class="sig-paren">(</span><em>rootdir</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/repo.html#Ubuntu.unpack"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.repo.Ubuntu.unpack" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.internal.repo.UnpackError">
+<em class="property">exception </em><code class="descclassname">snapcraft.internal.repo.</code><code class="descname">UnpackError</code><span class="sig-paren">(</span><em>package_name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/repo.html#UnpackError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.repo.UnpackError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">Exception</span></code></p>
+<dl class="attribute">
+<dt id="snapcraft.internal.repo.UnpackError.message">
+<code class="descname">message</code><a class="headerlink" href="#snapcraft.internal.repo.UnpackError.message" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.repo.check_for_command">
+<code class="descclassname">snapcraft.internal.repo.</code><code class="descname">check_for_command</code><span class="sig-paren">(</span><em>command</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/repo.html#check_for_command"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.repo.check_for_command" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.repo.fix_pkg_config">
+<code class="descclassname">snapcraft.internal.repo.</code><code class="descname">fix_pkg_config</code><span class="sig-paren">(</span><em>root</em>, <em>pkg_config_file</em>, <em>prefix_trim=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/repo.html#fix_pkg_config"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.repo.fix_pkg_config" title="Permalink to this definition">¶</a></dt>
+<dd><p>Opens a pkg_config_file and prefixes the prefix with root.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.repo.get_packages_for_source_type">
+<code class="descclassname">snapcraft.internal.repo.</code><code class="descname">get_packages_for_source_type</code><span class="sig-paren">(</span><em>source_type</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/repo.html#get_packages_for_source_type"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.repo.get_packages_for_source_type" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a list with required packages to handle the source_type.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>source</strong> &#8211; the snapcraft source type</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.repo.install_build_packages">
+<code class="descclassname">snapcraft.internal.repo.</code><code class="descname">install_build_packages</code><span class="sig-paren">(</span><em>packages</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/repo.html#install_build_packages"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.repo.install_build_packages" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.internal.repo.is_package_installed">
+<code class="descclassname">snapcraft.internal.repo.</code><code class="descname">is_package_installed</code><span class="sig-paren">(</span><em>package</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/internal/repo.html#is_package_installed"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.internal.repo.is_package_installed" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return True if a package is installed on the system.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>package</strong> (<em>str</em>) &#8211; the deb package to query for.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">True if the package is installed, False if not.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.internal">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-snapcraft.internal" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">snapcraft.internal package</a><ul>
+<li><a class="reference internal" href="#subpackages">Subpackages</a></li>
+<li><a class="reference internal" href="#submodules">Submodules</a></li>
+<li><a class="reference internal" href="#module-snapcraft.internal.common">snapcraft.internal.common module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.internal.deprecations">snapcraft.internal.deprecations module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.internal.dirs">snapcraft.internal.dirs module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.internal.errors">snapcraft.internal.errors module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.internal.indicators">snapcraft.internal.indicators module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.internal.libraries">snapcraft.internal.libraries module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.internal.lifecycle">snapcraft.internal.lifecycle module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.internal.log">snapcraft.internal.log module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.internal.lxd">snapcraft.internal.lxd module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.internal.meta">snapcraft.internal.meta module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.internal.parser">snapcraft.internal.parser module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.internal.parts">snapcraft.internal.parts module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.internal.project_loader">snapcraft.internal.project_loader module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.internal.repo">snapcraft.internal.repo module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.internal">Module contents</a></li>
+</ul>
+</li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  <li><a href="modules.html">snapcraft</a><ul>
+  <li><a href="snapcraft.html">snapcraft package</a><ul>
+      <li>Previous: <a href="snapcraft.integrations.tests.html" title="previous chapter">snapcraft.integrations.tests package</a></li>
+      <li>Next: <a href="snapcraft.internal.cache.html" title="next chapter">snapcraft.internal.cache package</a></li>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/snapcraft.internal.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+      |
+      <a href="_sources/snapcraft.internal.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

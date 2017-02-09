@@ -1,0 +1,22 @@
+snapcraft.internal.deltas package
+=================================
+
+Submodules
+----------
+
+snapcraft.internal.deltas.errors module
+---------------------------------------
+
+.. automodule:: snapcraft.internal.deltas.errors
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Module contents
+---------------
+
+.. automodule:: snapcraft.internal.deltas
+    :members:
+    :undoc-members:
+    :show-inheritance:

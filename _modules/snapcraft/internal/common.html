@@ -1,0 +1,360 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.internal.common &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../../index.html" />
+    <link rel="up" title="snapcraft" href="../../snapcraft.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.internal.common</h1><div class="highlight"><pre>
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2015-2016 Canonical Ltd</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="c1"># Data/methods shared between plugins and snapcraft</span>
+
+<span class="kn">from</span> <span class="nn">contextlib</span> <span class="kn">import</span> <span class="n">suppress</span>
+<span class="kn">import</span> <span class="nn">glob</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">shutil</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">tempfile</span>
+<span class="kn">import</span> <span class="nn">urllib</span>
+
+
+<span class="n">SNAPCRAFT_FILES</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;snapcraft.yaml&#39;</span><span class="p">,</span> <span class="s1">&#39;.snapcraft.yaml&#39;</span><span class="p">,</span> <span class="s1">&#39;parts&#39;</span><span class="p">,</span> <span class="s1">&#39;stage&#39;</span><span class="p">,</span>
+                   <span class="s1">&#39;prime&#39;</span><span class="p">,</span> <span class="s1">&#39;snap&#39;</span><span class="p">]</span>
+<span class="n">COMMAND_ORDER</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;pull&#39;</span><span class="p">,</span> <span class="s1">&#39;build&#39;</span><span class="p">,</span> <span class="s1">&#39;stage&#39;</span><span class="p">,</span> <span class="s1">&#39;prime&#39;</span><span class="p">]</span>
+<span class="n">_DEFAULT_PLUGINDIR</span> <span class="o">=</span> <span class="s1">&#39;/usr/share/snapcraft/plugins&#39;</span>
+<span class="n">_plugindir</span> <span class="o">=</span> <span class="n">_DEFAULT_PLUGINDIR</span>
+<span class="n">_DEFAULT_SCHEMADIR</span> <span class="o">=</span> <span class="s1">&#39;/usr/share/snapcraft/schema&#39;</span>
+<span class="n">_schemadir</span> <span class="o">=</span> <span class="n">_DEFAULT_SCHEMADIR</span>
+<span class="n">_DEFAULT_LIBRARIESDIR</span> <span class="o">=</span> <span class="s1">&#39;/usr/share/snapcraft/libraries&#39;</span>
+<span class="n">_librariesdir</span> <span class="o">=</span> <span class="n">_DEFAULT_LIBRARIESDIR</span>
+<span class="n">_DEFAULT_TOURDIR</span> <span class="o">=</span> <span class="s1">&#39;/usr/share/snapcraft/tour&#39;</span>
+<span class="n">_tourdir</span> <span class="o">=</span> <span class="n">_DEFAULT_TOURDIR</span>
+
+<span class="n">MAX_CHARACTERS_WRAP</span> <span class="o">=</span> <span class="mi">120</span>
+
+<span class="n">env</span> <span class="o">=</span> <span class="p">[]</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="assemble_env"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.assemble_env">[docs]</a><span class="k">def</span> <span class="nf">assemble_env</span><span class="p">():</span>
+    <span class="k">return</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s1">&#39;export &#39;</span> <span class="o">+</span> <span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">env</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="run"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.run">[docs]</a><span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="nb">list</span><span class="p">),</span> <span class="s1">&#39;run command must be a list&#39;</span>
+    <span class="c1"># FIXME: This is gross to keep writing this, even when env is the same</span>
+    <span class="k">with</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">NamedTemporaryFile</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s1">&#39;w+&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">assemble_env</span><span class="p">())</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;exec &quot;$@&quot;&#39;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+        <span class="n">subprocess</span><span class="o">.</span><span class="n">check_call</span><span class="p">([</span><span class="s1">&#39;/bin/sh&#39;</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">+</span> <span class="n">cmd</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="run_output"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.run_output">[docs]</a><span class="k">def</span> <span class="nf">run_output</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="nb">list</span><span class="p">),</span> <span class="s1">&#39;run command must be a list&#39;</span>
+    <span class="c1"># FIXME: This is gross to keep writing this, even when env is the same</span>
+    <span class="k">with</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">NamedTemporaryFile</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s1">&#39;w+&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">assemble_env</span><span class="p">())</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;exec &quot;$@&quot;&#39;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">check_output</span><span class="p">([</span><span class="s1">&#39;/bin/sh&#39;</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">+</span> <span class="n">cmd</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">output</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">getfilesystemencoding</span><span class="p">())</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">UnicodeEncodeError</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;Could not decode output for {!r} correctly&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">cmd</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">output</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;latin-1&#39;</span><span class="p">,</span> <span class="s1">&#39;surrogateescape&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="get_core_path"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.get_core_path">[docs]</a><span class="k">def</span> <span class="nf">get_core_path</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Returns the path to the core snap.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">sep</span><span class="p">,</span> <span class="s1">&#39;snap&#39;</span><span class="p">,</span> <span class="s1">&#39;core&#39;</span><span class="p">,</span> <span class="s1">&#39;current&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="format_snap_name"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.format_snap_name">[docs]</a><span class="k">def</span> <span class="nf">format_snap_name</span><span class="p">(</span><span class="n">snap</span><span class="p">):</span>
+    <span class="k">if</span> <span class="s1">&#39;arch&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">snap</span><span class="p">:</span>
+        <span class="n">snap</span><span class="p">[</span><span class="s1">&#39;arch&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">snap</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;architectures&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">snap</span><span class="p">[</span><span class="s1">&#39;arch&#39;</span><span class="p">]:</span>
+        <span class="n">snap</span><span class="p">[</span><span class="s1">&#39;arch&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;all&#39;</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">snap</span><span class="p">[</span><span class="s1">&#39;arch&#39;</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">snap</span><span class="p">[</span><span class="s1">&#39;arch&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">snap</span><span class="p">[</span><span class="s1">&#39;arch&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">snap</span><span class="p">[</span><span class="s1">&#39;arch&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;multi&#39;</span>
+
+    <span class="k">return</span> <span class="s1">&#39;{name}_{version}_{arch}.snap&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="o">**</span><span class="n">snap</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="set_plugindir"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.set_plugindir">[docs]</a><span class="k">def</span> <span class="nf">set_plugindir</span><span class="p">(</span><span class="n">plugindir</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">_plugindir</span>
+    <span class="n">_plugindir</span> <span class="o">=</span> <span class="n">plugindir</span></div>
+
+
+<div class="viewcode-block" id="get_plugindir"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.get_plugindir">[docs]</a><span class="k">def</span> <span class="nf">get_plugindir</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">_plugindir</span></div>
+
+
+<div class="viewcode-block" id="set_schemadir"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.set_schemadir">[docs]</a><span class="k">def</span> <span class="nf">set_schemadir</span><span class="p">(</span><span class="n">schemadir</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">_schemadir</span>
+    <span class="n">_schemadir</span> <span class="o">=</span> <span class="n">schemadir</span></div>
+
+
+<div class="viewcode-block" id="get_schemadir"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.get_schemadir">[docs]</a><span class="k">def</span> <span class="nf">get_schemadir</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">_schemadir</span></div>
+
+
+<div class="viewcode-block" id="get_arch_triplet"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.get_arch_triplet">[docs]</a><span class="k">def</span> <span class="nf">get_arch_triplet</span><span class="p">():</span>
+    <span class="k">raise</span> <span class="ne">EnvironmentError</span><span class="p">(</span>
+        <span class="s2">&quot;This plugin is outdated, use &#39;project.arch_triplet&#39;&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="get_arch"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.get_arch">[docs]</a><span class="k">def</span> <span class="nf">get_arch</span><span class="p">():</span>
+    <span class="k">raise</span> <span class="ne">EnvironmentError</span><span class="p">(</span>
+        <span class="s2">&quot;This plugin is outdated, use &#39;project.deb_arch&#39;&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="get_parallel_build_count"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.get_parallel_build_count">[docs]</a><span class="k">def</span> <span class="nf">get_parallel_build_count</span><span class="p">():</span>
+    <span class="k">raise</span> <span class="ne">EnvironmentError</span><span class="p">(</span>
+        <span class="s2">&quot;This plugin is outdated, use &#39;parallel_build_count&#39;&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="set_librariesdir"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.set_librariesdir">[docs]</a><span class="k">def</span> <span class="nf">set_librariesdir</span><span class="p">(</span><span class="n">librariesdir</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">_librariesdir</span>
+    <span class="n">_librariesdir</span> <span class="o">=</span> <span class="n">librariesdir</span></div>
+
+
+<div class="viewcode-block" id="get_librariesdir"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.get_librariesdir">[docs]</a><span class="k">def</span> <span class="nf">get_librariesdir</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">_librariesdir</span></div>
+
+
+<div class="viewcode-block" id="set_tourdir"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.set_tourdir">[docs]</a><span class="k">def</span> <span class="nf">set_tourdir</span><span class="p">(</span><span class="n">tourdir</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">_tourdir</span>
+    <span class="n">_tourdir</span> <span class="o">=</span> <span class="n">tourdir</span></div>
+
+
+<div class="viewcode-block" id="get_tourdir"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.get_tourdir">[docs]</a><span class="k">def</span> <span class="nf">get_tourdir</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">_tourdir</span></div>
+
+
+<div class="viewcode-block" id="get_python2_path"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.get_python2_path">[docs]</a><span class="k">def</span> <span class="nf">get_python2_path</span><span class="p">(</span><span class="n">root</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return a valid PYTHONPATH or raise an exception.&quot;&quot;&quot;</span>
+    <span class="n">python_paths</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+        <span class="n">root</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;lib&#39;</span><span class="p">,</span> <span class="s1">&#39;python2*&#39;</span><span class="p">,</span> <span class="s1">&#39;dist-packages&#39;</span><span class="p">))</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">python_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">except</span> <span class="ne">IndexError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">EnvironmentError</span><span class="p">(</span>
+            <span class="s1">&#39;PYTHONPATH cannot be set for {!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">root</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="get_url_scheme"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.get_url_scheme">[docs]</a><span class="k">def</span> <span class="nf">get_url_scheme</span><span class="p">(</span><span class="n">url</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">urllib</span><span class="o">.</span><span class="n">parse</span><span class="o">.</span><span class="n">urlparse</span><span class="p">(</span><span class="n">url</span><span class="p">)</span><span class="o">.</span><span class="n">scheme</span></div>
+
+
+<div class="viewcode-block" id="isurl"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.isurl">[docs]</a><span class="k">def</span> <span class="nf">isurl</span><span class="p">(</span><span class="n">url</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">get_url_scheme</span><span class="p">(</span><span class="n">url</span><span class="p">)</span> <span class="o">!=</span> <span class="s1">&#39;&#39;</span></div>
+
+
+<div class="viewcode-block" id="reset_env"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.reset_env">[docs]</a><span class="k">def</span> <span class="nf">reset_env</span><span class="p">():</span>
+    <span class="k">global</span> <span class="n">env</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="p">[]</span></div>
+
+
+<div class="viewcode-block" id="get_terminal_width"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.get_terminal_width">[docs]</a><span class="k">def</span> <span class="nf">get_terminal_width</span><span class="p">(</span><span class="n">max_width</span><span class="o">=</span><span class="n">MAX_CHARACTERS_WRAP</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">isatty</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">fileno</span><span class="p">()):</span>
+        <span class="n">width</span> <span class="o">=</span> <span class="n">shutil</span><span class="o">.</span><span class="n">get_terminal_size</span><span class="p">()</span><span class="o">.</span><span class="n">columns</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">width</span> <span class="o">=</span> <span class="n">MAX_CHARACTERS_WRAP</span>
+    <span class="k">if</span> <span class="n">max_width</span><span class="p">:</span>
+        <span class="n">width</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">max_width</span><span class="p">,</span> <span class="n">width</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">width</span></div>
+
+
+<div class="viewcode-block" id="format_output_in_columns"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.format_output_in_columns">[docs]</a><span class="k">def</span> <span class="nf">format_output_in_columns</span><span class="p">(</span><span class="n">elements_list</span><span class="p">,</span> <span class="n">max_width</span><span class="o">=</span><span class="n">MAX_CHARACTERS_WRAP</span><span class="p">,</span>
+                             <span class="n">num_col_spaces</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return a formatted list of strings ready to be printed line by line</span>
+
+<span class="sd">    elements_list is the list of elements ready to be printed on the output</span>
+<span class="sd">    max_width is the number of caracters the output shouldn&#39;t exceed</span>
+<span class="sd">    num_col_spaces is the number of spaces set between 2 columns&quot;&quot;&quot;</span>
+
+    <span class="c1"># First, try to get the starting point in term of number of lines</span>
+    <span class="n">total_num_chars</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="n">elem</span><span class="p">)</span> <span class="k">for</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">elements_list</span><span class="p">])</span>
+    <span class="n">num_lines</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">((</span><span class="n">total_num_chars</span> <span class="o">+</span>
+                           <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">elements_list</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">num_col_spaces</span><span class="p">)</span> <span class="o">/</span>
+                          <span class="n">max_width</span><span class="p">)</span>
+    <span class="n">sep</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">*</span><span class="n">num_col_spaces</span>
+
+    <span class="n">candidate_output</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">while</span> <span class="ow">not</span> <span class="n">candidate_output</span><span class="p">:</span>
+        <span class="c1"># dispatch elements in resulting list until num_lines</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">element</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">elements_list</span><span class="p">):</span>
+            <span class="c1"># for new columns, get the maximum width of this column</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">%</span> <span class="n">num_lines</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">col_width</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">i</span><span class="o">+</span><span class="n">num_lines</span><span class="p">):</span>
+                    <span class="c1"># ignore non existing elements at the end</span>
+                    <span class="k">with</span> <span class="n">suppress</span><span class="p">(</span><span class="ne">IndexError</span><span class="p">):</span>
+                        <span class="n">col_width</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">elements_list</span><span class="p">[</span><span class="n">j</span><span class="p">]),</span> <span class="n">col_width</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">num_lines</span><span class="p">:</span>
+                <span class="n">candidate_output</span><span class="o">.</span><span class="n">append</span><span class="p">([])</span>
+            <span class="n">candidate_output</span><span class="p">[</span><span class="n">i</span> <span class="o">%</span> <span class="n">num_lines</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">element</span><span class="o">.</span><span class="n">ljust</span><span class="p">(</span><span class="n">col_width</span><span class="p">))</span>
+
+        <span class="c1"># check that any line (like the first one) is still smaller than</span>
+        <span class="c1"># max_width</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sep</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">candidate_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span> <span class="o">&gt;</span> <span class="n">max_width</span><span class="p">:</span>
+            <span class="c1"># reset and try with one more line</span>
+            <span class="n">num_lines</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">candidate_output</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">result_output</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">line</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">candidate_output</span><span class="p">):</span>
+        <span class="n">result_output</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sep</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">candidate_output</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+
+    <span class="k">return</span> <span class="n">result_output</span></div>
+
+
+<div class="viewcode-block" id="get_include_paths"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.get_include_paths">[docs]</a><span class="k">def</span> <span class="nf">get_include_paths</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">arch_triplet</span><span class="p">):</span>
+    <span class="n">paths</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;include&#39;</span><span class="p">),</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;include&#39;</span><span class="p">),</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;include&#39;</span><span class="p">,</span> <span class="n">arch_triplet</span><span class="p">),</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;include&#39;</span><span class="p">,</span> <span class="n">arch_triplet</span><span class="p">),</span>
+    <span class="p">]</span>
+
+    <span class="k">return</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">paths</span> <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">p</span><span class="p">)]</span></div>
+
+
+<div class="viewcode-block" id="get_library_paths"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.get_library_paths">[docs]</a><span class="k">def</span> <span class="nf">get_library_paths</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">arch_triplet</span><span class="p">,</span> <span class="n">existing_only</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Returns common library paths for a snap.</span>
+
+<span class="sd">    If existing_only is set the paths returned must exist for</span>
+<span class="sd">    the root that was set.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">paths</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;lib&#39;</span><span class="p">),</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;lib&#39;</span><span class="p">),</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;lib&#39;</span><span class="p">,</span> <span class="n">arch_triplet</span><span class="p">),</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;lib&#39;</span><span class="p">,</span> <span class="n">arch_triplet</span><span class="p">),</span>
+    <span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">existing_only</span><span class="p">:</span>
+        <span class="n">paths</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">paths</span> <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">p</span><span class="p">)]</span>
+
+    <span class="k">return</span> <span class="n">paths</span></div>
+
+
+<div class="viewcode-block" id="get_pkg_config_paths"><a class="viewcode-back" href="../../../snapcraft.internal.html#snapcraft.internal.common.get_pkg_config_paths">[docs]</a><span class="k">def</span> <span class="nf">get_pkg_config_paths</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">arch_triplet</span><span class="p">):</span>
+    <span class="n">paths</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;lib&#39;</span><span class="p">,</span> <span class="s1">&#39;pkgconfig&#39;</span><span class="p">),</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;lib&#39;</span><span class="p">,</span> <span class="n">arch_triplet</span><span class="p">,</span> <span class="s1">&#39;pkgconfig&#39;</span><span class="p">),</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;lib&#39;</span><span class="p">,</span> <span class="s1">&#39;pkgconfig&#39;</span><span class="p">),</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;lib&#39;</span><span class="p">,</span> <span class="n">arch_triplet</span><span class="p">,</span> <span class="s1">&#39;pkgconfig&#39;</span><span class="p">),</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;share&#39;</span><span class="p">,</span> <span class="s1">&#39;pkgconfig&#39;</span><span class="p">),</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;local&#39;</span><span class="p">,</span> <span class="s1">&#39;lib&#39;</span><span class="p">,</span> <span class="s1">&#39;pkgconfig&#39;</span><span class="p">),</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;local&#39;</span><span class="p">,</span> <span class="s1">&#39;lib&#39;</span><span class="p">,</span> <span class="n">arch_triplet</span><span class="p">,</span> <span class="s1">&#39;pkgconfig&#39;</span><span class="p">),</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;usr&#39;</span><span class="p">,</span> <span class="s1">&#39;local&#39;</span><span class="p">,</span> <span class="s1">&#39;share&#39;</span><span class="p">,</span> <span class="s1">&#39;pkgconfig&#39;</span><span class="p">),</span>
+    <span class="p">]</span>
+
+    <span class="k">return</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">paths</span> <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">p</span><span class="p">)]</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  <li><a href="../../snapcraft.html">snapcraft</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

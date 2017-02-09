@@ -1,0 +1,864 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.storeapi &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../index.html" />
+    <link rel="up" title="snapcraft" href="../snapcraft.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.storeapi</h1><div class="highlight"><pre>
+
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2016 Canonical Ltd</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="kn">import</span> <span class="nn">contextlib</span>
+<span class="kn">import</span> <span class="nn">hashlib</span>
+<span class="kn">import</span> <span class="nn">itertools</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">urllib.parse</span>
+<span class="kn">from</span> <span class="nn">time</span> <span class="kn">import</span> <span class="n">sleep</span>
+<span class="kn">from</span> <span class="nn">threading</span> <span class="kn">import</span> <span class="n">Thread</span>
+<span class="kn">from</span> <span class="nn">queue</span> <span class="kn">import</span> <span class="n">Queue</span>
+
+<span class="kn">from</span> <span class="nn">progressbar</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AnimatedMarker</span><span class="p">,</span>
+    <span class="n">ProgressBar</span><span class="p">,</span>
+    <span class="n">UnknownLength</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">import</span> <span class="nn">pymacaroons</span>
+<span class="kn">import</span> <span class="nn">requests</span>
+<span class="kn">from</span> <span class="nn">simplejson.scanner</span> <span class="kn">import</span> <span class="n">JSONDecodeError</span>
+
+<span class="kn">import</span> <span class="nn">snapcraft</span>
+<span class="kn">from</span> <span class="nn">snapcraft</span> <span class="kn">import</span> <span class="n">config</span>
+<span class="kn">from</span> <span class="nn">snapcraft.internal.indicators</span> <span class="kn">import</span> <span class="n">download_requests_stream</span>
+<span class="kn">from</span> <span class="nn">snapcraft.storeapi</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">_upload</span><span class="p">,</span>
+    <span class="n">constants</span><span class="p">,</span>
+    <span class="n">errors</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_macaroon_auth</span><span class="p">(</span><span class="n">conf</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Format a macaroon and its associated discharge.</span>
+
+<span class="sd">    :return: A string suitable to use in an Authorization header.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">root_macaroon_raw</span> <span class="o">=</span> <span class="n">conf</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;macaroon&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">root_macaroon_raw</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">InvalidCredentialsError</span><span class="p">(</span>
+            <span class="s1">&#39;Root macaroon not in the config file&#39;</span><span class="p">)</span>
+    <span class="n">unbound_raw</span> <span class="o">=</span> <span class="n">conf</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;unbound_discharge&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">unbound_raw</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">InvalidCredentialsError</span><span class="p">(</span>
+            <span class="s1">&#39;Unbound discharge not in the config file&#39;</span><span class="p">)</span>
+
+    <span class="n">root_macaroon</span> <span class="o">=</span> <span class="n">_deserialize_macaroon</span><span class="p">(</span><span class="n">root_macaroon_raw</span><span class="p">)</span>
+    <span class="n">unbound</span> <span class="o">=</span> <span class="n">_deserialize_macaroon</span><span class="p">(</span><span class="n">unbound_raw</span><span class="p">)</span>
+    <span class="n">bound</span> <span class="o">=</span> <span class="n">root_macaroon</span><span class="o">.</span><span class="n">prepare_for_request</span><span class="p">(</span><span class="n">unbound</span><span class="p">)</span>
+    <span class="n">discharge_macaroon_raw</span> <span class="o">=</span> <span class="n">bound</span><span class="o">.</span><span class="n">serialize</span><span class="p">()</span>
+    <span class="n">auth</span> <span class="o">=</span> <span class="s1">&#39;Macaroon root={}, discharge={}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">root_macaroon_raw</span><span class="p">,</span> <span class="n">discharge_macaroon_raw</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">auth</span>
+
+
+<span class="k">def</span> <span class="nf">_deserialize_macaroon</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">pymacaroons</span><span class="o">.</span><span class="n">Macaroon</span><span class="o">.</span><span class="n">deserialize</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">InvalidCredentialsError</span><span class="p">(</span><span class="s1">&#39;Failed to deserialize macaroon&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Client"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.Client">[docs]</a><span class="k">class</span> <span class="nc">Client</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;A base class to define clients for the ols servers.</span>
+
+<span class="sd">    This is a simple wrapper around requests.Session so we inherit all good</span>
+<span class="sd">    bits while providing a simple point for tests to override when needed.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">conf</span><span class="p">,</span> <span class="n">root_url</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conf</span> <span class="o">=</span> <span class="n">conf</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">root_url</span> <span class="o">=</span> <span class="n">root_url</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">session</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">Session</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_snapcraft_headers</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;X-SNAPCRAFT-VERSION&#39;</span><span class="p">:</span> <span class="n">snapcraft</span><span class="o">.</span><span class="n">__version__</span>
+        <span class="p">}</span>
+
+<div class="viewcode-block" id="Client.request"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.Client.request">[docs]</a>    <span class="k">def</span> <span class="nf">request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Overriding base class to handle the root url.&quot;&quot;&quot;</span>
+        <span class="c1"># Note that url may be absolute in which case &#39;root_url&#39; is ignored by</span>
+        <span class="c1"># urljoin.</span>
+
+        <span class="k">if</span> <span class="n">headers</span><span class="p">:</span>
+            <span class="n">headers</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_snapcraft_headers</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">headers</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_snapcraft_headers</span>
+
+        <span class="n">final_url</span> <span class="o">=</span> <span class="n">urllib</span><span class="o">.</span><span class="n">parse</span><span class="o">.</span><span class="n">urljoin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_url</span><span class="p">,</span> <span class="n">url</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">request</span><span class="p">(</span>
+            <span class="n">method</span><span class="p">,</span> <span class="n">final_url</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">,</span>
+            <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">response</span></div>
+
+<div class="viewcode-block" id="Client.get"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.Client.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="s1">&#39;GET&#39;</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Client.post"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.Client.post">[docs]</a>    <span class="k">def</span> <span class="nf">post</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="s1">&#39;POST&#39;</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Client.put"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.Client.put">[docs]</a>    <span class="k">def</span> <span class="nf">put</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="s1">&#39;PUT&#39;</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="StoreClient"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.StoreClient">[docs]</a><span class="k">class</span> <span class="nc">StoreClient</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;High-level client for the V2.0 API SCA resources.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conf</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">Config</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sso</span> <span class="o">=</span> <span class="n">SSOClient</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cpi</span> <span class="o">=</span> <span class="n">SnapIndexClient</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">updown</span> <span class="o">=</span> <span class="n">UpDownClient</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sca</span> <span class="o">=</span> <span class="n">SCAClient</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="p">)</span>
+
+<div class="viewcode-block" id="StoreClient.login"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.StoreClient.login">[docs]</a>    <span class="k">def</span> <span class="nf">login</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">email</span><span class="p">,</span> <span class="n">password</span><span class="p">,</span> <span class="n">one_time_password</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">acls</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+              <span class="n">packages</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">channels</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Log in via the Ubuntu One SSO API.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">acls</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">acls</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;package_upload&#39;</span><span class="p">,</span> <span class="s1">&#39;package_access&#39;</span><span class="p">]</span>
+        <span class="c1"># Ask the store for the needed capabilities to be associated with the</span>
+        <span class="c1"># macaroon.</span>
+        <span class="n">macaroon</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sca</span><span class="o">.</span><span class="n">get_macaroon</span><span class="p">(</span><span class="n">acls</span><span class="p">,</span> <span class="n">packages</span><span class="p">,</span> <span class="n">channels</span><span class="p">)</span>
+        <span class="n">caveat_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extract_caveat_id</span><span class="p">(</span><span class="n">macaroon</span><span class="p">)</span>
+        <span class="n">unbound_discharge</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sso</span><span class="o">.</span><span class="n">get_unbound_discharge</span><span class="p">(</span>
+            <span class="n">email</span><span class="p">,</span> <span class="n">password</span><span class="p">,</span> <span class="n">one_time_password</span><span class="p">,</span> <span class="n">caveat_id</span><span class="p">)</span>
+        <span class="c1"># The macaroon has been discharged, save it in the config</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;macaroon&#39;</span><span class="p">,</span> <span class="n">macaroon</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;unbound_discharge&#39;</span><span class="p">,</span> <span class="n">unbound_discharge</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">save</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="o">.</span><span class="n">save</span><span class="p">()</span></div>
+
+    <span class="k">def</span> <span class="nf">_extract_caveat_id</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root_macaroon</span><span class="p">):</span>
+        <span class="n">macaroon</span> <span class="o">=</span> <span class="n">pymacaroons</span><span class="o">.</span><span class="n">Macaroon</span><span class="o">.</span><span class="n">deserialize</span><span class="p">(</span><span class="n">root_macaroon</span><span class="p">)</span>
+        <span class="c1"># macaroons are all bytes, never strings</span>
+        <span class="n">sso_host</span> <span class="o">=</span> <span class="n">urllib</span><span class="o">.</span><span class="n">parse</span><span class="o">.</span><span class="n">urlparse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sso</span><span class="o">.</span><span class="n">root_url</span><span class="p">)</span><span class="o">.</span><span class="n">netloc</span>
+        <span class="k">for</span> <span class="n">caveat</span> <span class="ow">in</span> <span class="n">macaroon</span><span class="o">.</span><span class="n">caveats</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">caveat</span><span class="o">.</span><span class="n">location</span> <span class="o">==</span> <span class="n">sso_host</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">caveat</span><span class="o">.</span><span class="n">caveat_id</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">InvalidCredentialsError</span><span class="p">(</span><span class="s1">&#39;Invalid root macaroon&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="StoreClient.logout"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.StoreClient.logout">[docs]</a>    <span class="k">def</span> <span class="nf">logout</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="o">.</span><span class="n">save</span><span class="p">()</span></div>
+
+    <span class="k">def</span> <span class="nf">_refresh_if_necessary</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Make a request, refreshing macaroons if necessary.&quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">errors</span><span class="o">.</span><span class="n">StoreMacaroonNeedsRefreshError</span><span class="p">:</span>
+            <span class="n">unbound_discharge</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sso</span><span class="o">.</span><span class="n">refresh_unbound_discharge</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;unbound_discharge&#39;</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;unbound_discharge&#39;</span><span class="p">,</span> <span class="n">unbound_discharge</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+<div class="viewcode-block" id="StoreClient.get_account_information"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.StoreClient.get_account_information">[docs]</a>    <span class="k">def</span> <span class="nf">get_account_information</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_refresh_if_necessary</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sca</span><span class="o">.</span><span class="n">get_account_information</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="StoreClient.register_key"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.StoreClient.register_key">[docs]</a>    <span class="k">def</span> <span class="nf">register_key</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">account_key_request</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_refresh_if_necessary</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sca</span><span class="o">.</span><span class="n">register_key</span><span class="p">,</span> <span class="n">account_key_request</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="StoreClient.register"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.StoreClient.register">[docs]</a>    <span class="k">def</span> <span class="nf">register</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">,</span> <span class="n">is_private</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_refresh_if_necessary</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sca</span><span class="o">.</span><span class="n">register</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">,</span> <span class="n">is_private</span><span class="p">,</span> <span class="n">constants</span><span class="o">.</span><span class="n">DEFAULT_SERIES</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="StoreClient.push_precheck"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.StoreClient.push_precheck">[docs]</a>    <span class="k">def</span> <span class="nf">push_precheck</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_refresh_if_necessary</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sca</span><span class="o">.</span><span class="n">snap_push_precheck</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="StoreClient.push_snap_build"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.StoreClient.push_snap_build">[docs]</a>    <span class="k">def</span> <span class="nf">push_snap_build</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_id</span><span class="p">,</span> <span class="n">snap_build</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_refresh_if_necessary</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sca</span><span class="o">.</span><span class="n">push_snap_build</span><span class="p">,</span> <span class="n">snap_id</span><span class="p">,</span> <span class="n">snap_build</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="StoreClient.upload"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.StoreClient.upload">[docs]</a>    <span class="k">def</span> <span class="nf">upload</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">,</span> <span class="n">snap_filename</span><span class="p">,</span> <span class="n">delta_format</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+               <span class="n">source_hash</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">target_hash</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">delta_hash</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="c1"># FIXME This should be raised by the function that uses the</span>
+        <span class="c1"># discharge. --elopio -2016-06-20</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;unbound_discharge&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">InvalidCredentialsError</span><span class="p">(</span>
+                <span class="s1">&#39;Unbound discharge not in the config file&#39;</span><span class="p">)</span>
+
+        <span class="n">updown_data</span> <span class="o">=</span> <span class="n">_upload</span><span class="o">.</span><span class="n">upload_files</span><span class="p">(</span><span class="n">snap_filename</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">updown</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_refresh_if_necessary</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sca</span><span class="o">.</span><span class="n">snap_push_metadata</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">,</span> <span class="n">updown_data</span><span class="p">,</span>
+            <span class="n">delta_format</span><span class="o">=</span><span class="n">delta_format</span><span class="p">,</span> <span class="n">source_hash</span><span class="o">=</span><span class="n">source_hash</span><span class="p">,</span>
+            <span class="n">target_hash</span><span class="o">=</span><span class="n">target_hash</span><span class="p">,</span> <span class="n">delta_hash</span><span class="o">=</span><span class="n">delta_hash</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="StoreClient.release"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.StoreClient.release">[docs]</a>    <span class="k">def</span> <span class="nf">release</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">,</span> <span class="n">revision</span><span class="p">,</span> <span class="n">channels</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_refresh_if_necessary</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sca</span><span class="o">.</span><span class="n">snap_release</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">,</span> <span class="n">revision</span><span class="p">,</span> <span class="n">channels</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="StoreClient.get_snap_history"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.StoreClient.get_snap_history">[docs]</a>    <span class="k">def</span> <span class="nf">get_snap_history</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">,</span> <span class="n">series</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">arch</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">series</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">series</span> <span class="o">=</span> <span class="n">constants</span><span class="o">.</span><span class="n">DEFAULT_SERIES</span>
+
+        <span class="n">account_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_account_information</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">snap_id</span> <span class="o">=</span> <span class="n">account_info</span><span class="p">[</span><span class="s1">&#39;snaps&#39;</span><span class="p">][</span><span class="n">series</span><span class="p">][</span><span class="n">snap_name</span><span class="p">][</span><span class="s1">&#39;snap-id&#39;</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">SnapNotFoundError</span><span class="p">(</span><span class="n">snap_name</span><span class="p">,</span> <span class="n">series</span><span class="o">=</span><span class="n">series</span><span class="p">,</span> <span class="n">arch</span><span class="o">=</span><span class="n">arch</span><span class="p">)</span>
+
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_refresh_if_necessary</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sca</span><span class="o">.</span><span class="n">snap_history</span><span class="p">,</span> <span class="n">snap_id</span><span class="p">,</span> <span class="n">series</span><span class="p">,</span> <span class="n">arch</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">response</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">SnapNotFoundError</span><span class="p">(</span><span class="n">snap_name</span><span class="p">,</span> <span class="n">series</span><span class="o">=</span><span class="n">series</span><span class="p">,</span> <span class="n">arch</span><span class="o">=</span><span class="n">arch</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">response</span></div>
+
+<div class="viewcode-block" id="StoreClient.get_snap_status"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.StoreClient.get_snap_status">[docs]</a>    <span class="k">def</span> <span class="nf">get_snap_status</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">,</span> <span class="n">series</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">arch</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">series</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">series</span> <span class="o">=</span> <span class="n">constants</span><span class="o">.</span><span class="n">DEFAULT_SERIES</span>
+
+        <span class="n">account_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_account_information</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">snap_id</span> <span class="o">=</span> <span class="n">account_info</span><span class="p">[</span><span class="s1">&#39;snaps&#39;</span><span class="p">][</span><span class="n">series</span><span class="p">][</span><span class="n">snap_name</span><span class="p">][</span><span class="s1">&#39;snap-id&#39;</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">SnapNotFoundError</span><span class="p">(</span><span class="n">snap_name</span><span class="p">,</span> <span class="n">series</span><span class="o">=</span><span class="n">series</span><span class="p">,</span> <span class="n">arch</span><span class="o">=</span><span class="n">arch</span><span class="p">)</span>
+
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_refresh_if_necessary</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sca</span><span class="o">.</span><span class="n">snap_status</span><span class="p">,</span> <span class="n">snap_id</span><span class="p">,</span> <span class="n">series</span><span class="p">,</span> <span class="n">arch</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">response</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">SnapNotFoundError</span><span class="p">(</span><span class="n">snap_name</span><span class="p">,</span> <span class="n">series</span><span class="o">=</span><span class="n">series</span><span class="p">,</span> <span class="n">arch</span><span class="o">=</span><span class="n">arch</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">response</span></div>
+
+<div class="viewcode-block" id="StoreClient.close_channels"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.StoreClient.close_channels">[docs]</a>    <span class="k">def</span> <span class="nf">close_channels</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_id</span><span class="p">,</span> <span class="n">channel_names</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_refresh_if_necessary</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sca</span><span class="o">.</span><span class="n">close_channels</span><span class="p">,</span> <span class="n">snap_id</span><span class="p">,</span> <span class="n">channel_names</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="StoreClient.download"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.StoreClient.download">[docs]</a>    <span class="k">def</span> <span class="nf">download</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">download_path</span><span class="p">,</span>
+                 <span class="n">arch</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">except_hash</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">arch</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">arch</span> <span class="o">=</span> <span class="n">snapcraft</span><span class="o">.</span><span class="n">ProjectOptions</span><span class="p">()</span><span class="o">.</span><span class="n">deb_arch</span>
+
+        <span class="n">package</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cpi</span><span class="o">.</span><span class="n">get_package</span><span class="p">(</span><span class="n">snap_name</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">arch</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">package</span><span class="p">[</span><span class="s1">&#39;download_sha3_384&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="n">except_hash</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_download_snap</span><span class="p">(</span>
+                <span class="n">snap_name</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">arch</span><span class="p">,</span> <span class="n">download_path</span><span class="p">,</span>
+                <span class="c1"># FIXME LP: #1662665</span>
+                <span class="n">package</span><span class="p">[</span><span class="s1">&#39;anon_download_url&#39;</span><span class="p">],</span> <span class="n">package</span><span class="p">[</span><span class="s1">&#39;download_sha512&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">package</span><span class="p">[</span><span class="s1">&#39;download_sha3_384&#39;</span><span class="p">]</span></div>
+
+    <span class="k">def</span> <span class="nf">_download_snap</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">arch</span><span class="p">,</span> <span class="n">download_path</span><span class="p">,</span>
+                       <span class="n">download_url</span><span class="p">,</span> <span class="n">expected_sha512</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_downloaded</span><span class="p">(</span><span class="n">download_path</span><span class="p">,</span> <span class="n">expected_sha512</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Already downloaded {} at {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">name</span><span class="p">,</span> <span class="n">download_path</span><span class="p">))</span>
+            <span class="k">return</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Downloading {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">download_path</span><span class="p">))</span>
+        <span class="n">request</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cpi</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">download_url</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="n">request</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
+        <span class="n">download_requests_stream</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">download_path</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_downloaded</span><span class="p">(</span><span class="n">download_path</span><span class="p">,</span> <span class="n">expected_sha512</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Successfully downloaded {} at {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">name</span><span class="p">,</span> <span class="n">download_path</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">SHAMismatchError</span><span class="p">(</span><span class="n">download_path</span><span class="p">,</span> <span class="n">expected_sha512</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_is_downloaded</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">expected_sha512</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">False</span>
+
+        <span class="n">file_sum</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha512</span><span class="p">()</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">file_chunk</span> <span class="ow">in</span> <span class="nb">iter</span><span class="p">(</span>
+                    <span class="k">lambda</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file_sum</span><span class="o">.</span><span class="n">block_size</span> <span class="o">*</span> <span class="mi">128</span><span class="p">),</span> <span class="n">b</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+                <span class="n">file_sum</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">file_chunk</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">expected_sha512</span> <span class="o">==</span> <span class="n">file_sum</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
+
+<div class="viewcode-block" id="StoreClient.push_validation"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.StoreClient.push_validation">[docs]</a>    <span class="k">def</span> <span class="nf">push_validation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_id</span><span class="p">,</span> <span class="n">assertion</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sca</span><span class="o">.</span><span class="n">push_validation</span><span class="p">(</span><span class="n">snap_id</span><span class="p">,</span> <span class="n">assertion</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="StoreClient.get_validations"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.StoreClient.get_validations">[docs]</a>    <span class="k">def</span> <span class="nf">get_validations</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_id</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sca</span><span class="o">.</span><span class="n">get_validations</span><span class="p">(</span><span class="n">snap_id</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="StoreClient.sign_developer_agreement"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.StoreClient.sign_developer_agreement">[docs]</a>    <span class="k">def</span> <span class="nf">sign_developer_agreement</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">latest_tos_accepted</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sca</span><span class="o">.</span><span class="n">sign_developer_agreement</span><span class="p">(</span><span class="n">latest_tos_accepted</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="SSOClient"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SSOClient">[docs]</a><span class="k">class</span> <span class="nc">SSOClient</span><span class="p">(</span><span class="n">Client</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The Single Sign On server deals with authentication.</span>
+
+<span class="sd">    It is used directly or indirectly by other servers.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">conf</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">conf</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s1">&#39;UBUNTU_SSO_API_ROOT_URL&#39;</span><span class="p">,</span>
+            <span class="n">constants</span><span class="o">.</span><span class="n">UBUNTU_SSO_API_ROOT_URL</span><span class="p">))</span>
+
+<div class="viewcode-block" id="SSOClient.get_unbound_discharge"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SSOClient.get_unbound_discharge">[docs]</a>    <span class="k">def</span> <span class="nf">get_unbound_discharge</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">email</span><span class="p">,</span> <span class="n">password</span><span class="p">,</span> <span class="n">one_time_password</span><span class="p">,</span>
+                              <span class="n">caveat_id</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">email</span><span class="o">=</span><span class="n">email</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="n">password</span><span class="p">,</span>
+                    <span class="n">caveat_id</span><span class="o">=</span><span class="n">caveat_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">one_time_password</span><span class="p">:</span>
+            <span class="n">data</span><span class="p">[</span><span class="s1">&#39;otp&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">one_time_password</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+            <span class="s1">&#39;tokens/discharge&#39;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">data</span><span class="p">),</span>
+            <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;Content-Type&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">,</span>
+                     <span class="s1">&#39;Accept&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">})</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">response_json</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="k">except</span> <span class="n">JSONDecodeError</span><span class="p">:</span>
+            <span class="n">response_json</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">response_json</span><span class="p">[</span><span class="s1">&#39;discharge_macaroon&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="n">requests</span><span class="o">.</span><span class="n">codes</span><span class="o">.</span><span class="n">unauthorized</span> <span class="ow">and</span>
+                <span class="nb">any</span><span class="p">(</span><span class="n">error</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;code&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;twofactor-required&#39;</span>
+                    <span class="k">for</span> <span class="n">error</span> <span class="ow">in</span> <span class="n">response_json</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;error_list&#39;</span><span class="p">,</span> <span class="p">[]))):</span>
+                <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StoreTwoFactorAuthenticationRequired</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StoreAuthenticationError</span><span class="p">(</span>
+                    <span class="s1">&#39;Failed to get unbound discharge: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="n">response</span><span class="o">.</span><span class="n">text</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="SSOClient.refresh_unbound_discharge"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SSOClient.refresh_unbound_discharge">[docs]</a>    <span class="k">def</span> <span class="nf">refresh_unbound_discharge</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">unbound_discharge</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;discharge_macaroon&#39;</span><span class="p">:</span> <span class="n">unbound_discharge</span><span class="p">}</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+            <span class="s1">&#39;tokens/refresh&#39;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">data</span><span class="p">),</span>
+            <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;Content-Type&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">,</span>
+                     <span class="s1">&#39;Accept&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">})</span>
+        <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s1">&#39;discharge_macaroon&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StoreAuthenticationError</span><span class="p">(</span>
+                <span class="s1">&#39;Failed to refresh unbound discharge: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">response</span><span class="o">.</span><span class="n">text</span><span class="p">))</span></div></div>
+
+
+<div class="viewcode-block" id="SnapIndexClient"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SnapIndexClient">[docs]</a><span class="k">class</span> <span class="nc">SnapIndexClient</span><span class="p">(</span><span class="n">Client</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The Click Package Index knows everything about existing snaps.</span>
+
+<span class="sd">    https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex is the</span>
+<span class="sd">    canonical reference.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">conf</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">conf</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s1">&#39;UBUNTU_STORE_SEARCH_ROOT_URL&#39;</span><span class="p">,</span>
+            <span class="n">constants</span><span class="o">.</span><span class="n">UBUNTU_STORE_SEARCH_ROOT_URL</span><span class="p">))</span>
+
+<div class="viewcode-block" id="SnapIndexClient.get_default_headers"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SnapIndexClient.get_default_headers">[docs]</a>    <span class="k">def</span> <span class="nf">get_default_headers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return default headers for CPI requests.</span>
+
+<span class="sd">        Tries to build an &#39;Authorization&#39; header with local credentials</span>
+<span class="sd">        if they are available.</span>
+<span class="sd">        Also pin specific branded store if `SNAPCRAFT_UBUNTU_STORE`</span>
+<span class="sd">        environment is set.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">headers</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">suppress</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">InvalidCredentialsError</span><span class="p">):</span>
+            <span class="n">headers</span><span class="p">[</span><span class="s1">&#39;Authorization&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_macaroon_auth</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="p">)</span>
+
+        <span class="n">branded_store</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">&#39;SNAPCRAFT_UBUNTU_STORE&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">branded_store</span><span class="p">:</span>
+            <span class="n">headers</span><span class="p">[</span><span class="s1">&#39;X-Ubuntu-Store&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">branded_store</span>
+
+        <span class="k">return</span> <span class="n">headers</span></div>
+
+<div class="viewcode-block" id="SnapIndexClient.get_package"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SnapIndexClient.get_package">[docs]</a>    <span class="k">def</span> <span class="nf">get_package</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">arch</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="n">headers</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_default_headers</span><span class="p">()</span>
+        <span class="n">headers</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="s1">&#39;Accept&#39;</span><span class="p">:</span> <span class="s1">&#39;application/hal+json&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;X-Ubuntu-Release&#39;</span><span class="p">:</span> <span class="n">constants</span><span class="o">.</span><span class="n">DEFAULT_SERIES</span><span class="p">,</span>
+        <span class="p">})</span>
+        <span class="k">if</span> <span class="n">arch</span><span class="p">:</span>
+            <span class="n">headers</span><span class="p">[</span><span class="s1">&#39;X-Ubuntu-Architecture&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">arch</span>
+
+        <span class="n">params</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;channel&#39;</span><span class="p">:</span> <span class="n">channel</span><span class="p">,</span>
+            <span class="c1"># FIXME LP: #1662665</span>
+            <span class="s1">&#39;fields&#39;</span><span class="p">:</span> <span class="s1">&#39;status,anon_download_url,download_url,&#39;</span>
+                      <span class="s1">&#39;download_sha3_384,download_sha512,snap_id,&#39;</span>
+                      <span class="s1">&#39;revision,release&#39;</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Getting details for {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">snap_name</span><span class="p">))</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="s1">&#39;api/v1/snaps/details/{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">snap_name</span><span class="p">)</span>
+        <span class="n">resp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">resp</span><span class="o">.</span><span class="n">status_code</span> <span class="o">!=</span> <span class="mi">200</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">SnapNotFoundError</span><span class="p">(</span><span class="n">snap_name</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">arch</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">resp</span><span class="o">.</span><span class="n">json</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="SnapIndexClient.get"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SnapIndexClient.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">headers</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">headers</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_default_headers</span><span class="p">()</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="s1">&#39;GET&#39;</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="n">stream</span><span class="p">,</span>
+                                <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">response</span></div></div>
+
+
+<div class="viewcode-block" id="UpDownClient"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.UpDownClient">[docs]</a><span class="k">class</span> <span class="nc">UpDownClient</span><span class="p">(</span><span class="n">Client</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The Up/Down server provide upload/download snap capabilities.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">conf</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">conf</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s1">&#39;UBUNTU_STORE_UPLOAD_ROOT_URL&#39;</span><span class="p">,</span>
+            <span class="n">constants</span><span class="o">.</span><span class="n">UBUNTU_STORE_UPLOAD_ROOT_URL</span><span class="p">))</span>
+
+<div class="viewcode-block" id="UpDownClient.upload"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.UpDownClient.upload">[docs]</a>    <span class="k">def</span> <span class="nf">upload</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">monitor</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+            <span class="n">urllib</span><span class="o">.</span><span class="n">parse</span><span class="o">.</span><span class="n">urljoin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_url</span><span class="p">,</span> <span class="s1">&#39;unscanned-upload/&#39;</span><span class="p">),</span>
+            <span class="n">data</span><span class="o">=</span><span class="n">monitor</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;Content-Type&#39;</span><span class="p">:</span> <span class="n">monitor</span><span class="o">.</span><span class="n">content_type</span><span class="p">,</span>
+                                   <span class="s1">&#39;Accept&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">})</span></div></div>
+
+
+<div class="viewcode-block" id="SCAClient"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SCAClient">[docs]</a><span class="k">class</span> <span class="nc">SCAClient</span><span class="p">(</span><span class="n">Client</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The software center agent deals with managing snaps.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">conf</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">conf</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s1">&#39;UBUNTU_STORE_API_ROOT_URL&#39;</span><span class="p">,</span>
+            <span class="n">constants</span><span class="o">.</span><span class="n">UBUNTU_STORE_API_ROOT_URL</span><span class="p">))</span>
+
+<div class="viewcode-block" id="SCAClient.get_macaroon"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SCAClient.get_macaroon">[docs]</a>    <span class="k">def</span> <span class="nf">get_macaroon</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">acls</span><span class="p">,</span> <span class="n">packages</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">channels</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;permissions&#39;</span><span class="p">:</span> <span class="n">acls</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">packages</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+                <span class="s1">&#39;packages&#39;</span><span class="p">:</span> <span class="n">packages</span><span class="p">,</span>
+            <span class="p">})</span>
+        <span class="k">if</span> <span class="n">channels</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+                <span class="s1">&#39;channels&#39;</span><span class="p">:</span> <span class="n">channels</span><span class="p">,</span>
+            <span class="p">})</span>
+        <span class="n">headers</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;Accept&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+            <span class="s1">&#39;acl/&#39;</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s1">&#39;macaroon&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StoreAuthenticationError</span><span class="p">(</span><span class="s1">&#39;Failed to get macaroon&#39;</span><span class="p">)</span></div>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_is_needs_refresh_response</span><span class="p">(</span><span class="n">response</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="n">requests</span><span class="o">.</span><span class="n">codes</span><span class="o">.</span><span class="n">unauthorized</span> <span class="ow">and</span>
+            <span class="n">response</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;WWW-Authenticate&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span>
+                <span class="s1">&#39;Macaroon needs_refresh=1&#39;</span><span class="p">))</span>
+
+<div class="viewcode-block" id="SCAClient.request"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SCAClient.request">[docs]</a>    <span class="k">def</span> <span class="nf">request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_needs_refresh_response</span><span class="p">(</span><span class="n">response</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StoreMacaroonNeedsRefreshError</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">response</span></div>
+
+<div class="viewcode-block" id="SCAClient.get_account_information"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SCAClient.get_account_information">[docs]</a>    <span class="k">def</span> <span class="nf">get_account_information</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">auth</span> <span class="o">=</span> <span class="n">_macaroon_auth</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s1">&#39;account&#39;</span><span class="p">,</span>
+            <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;Authorization&#39;</span><span class="p">:</span> <span class="n">auth</span><span class="p">,</span>
+                     <span class="s1">&#39;Accept&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">})</span>
+        <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StoreAccountInformationError</span><span class="p">(</span><span class="n">response</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SCAClient.register_key"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SCAClient.register_key">[docs]</a>    <span class="k">def</span> <span class="nf">register_key</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">account_key_request</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;account_key_request&#39;</span><span class="p">:</span> <span class="n">account_key_request</span><span class="p">}</span>
+        <span class="n">auth</span> <span class="o">=</span> <span class="n">_macaroon_auth</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+            <span class="s1">&#39;account/account-key&#39;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">data</span><span class="p">),</span>
+            <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;Authorization&#39;</span><span class="p">:</span> <span class="n">auth</span><span class="p">,</span>
+                     <span class="s1">&#39;Content-Type&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">,</span>
+                     <span class="s1">&#39;Accept&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">})</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">response</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StoreKeyRegistrationError</span><span class="p">(</span><span class="n">response</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SCAClient.register"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SCAClient.register">[docs]</a>    <span class="k">def</span> <span class="nf">register</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">,</span> <span class="n">is_private</span><span class="p">,</span> <span class="n">series</span><span class="p">):</span>
+        <span class="n">auth</span> <span class="o">=</span> <span class="n">_macaroon_auth</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">snap_name</span><span class="o">=</span><span class="n">snap_name</span><span class="p">,</span> <span class="n">is_private</span><span class="o">=</span><span class="n">is_private</span><span class="p">,</span>
+                    <span class="n">series</span><span class="o">=</span><span class="n">series</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+            <span class="s1">&#39;register-name/&#39;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">data</span><span class="p">),</span>
+            <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;Authorization&#39;</span><span class="p">:</span> <span class="n">auth</span><span class="p">,</span>
+                     <span class="s1">&#39;Content-Type&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">})</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">response</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StoreRegistrationError</span><span class="p">(</span><span class="n">snap_name</span><span class="p">,</span> <span class="n">response</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SCAClient.snap_push_precheck"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SCAClient.snap_push_precheck">[docs]</a>    <span class="k">def</span> <span class="nf">snap_push_precheck</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">snap_name</span><span class="p">,</span>
+            <span class="s1">&#39;dry_run&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="n">auth</span> <span class="o">=</span> <span class="n">_macaroon_auth</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+            <span class="s1">&#39;snap-push/&#39;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">data</span><span class="p">),</span>
+            <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;Authorization&#39;</span><span class="p">:</span> <span class="n">auth</span><span class="p">,</span>
+                     <span class="s1">&#39;Content-Type&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">,</span>
+                     <span class="s1">&#39;Accept&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">})</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">response</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StorePushError</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span> <span class="n">response</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SCAClient.snap_push_metadata"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SCAClient.snap_push_metadata">[docs]</a>    <span class="k">def</span> <span class="nf">snap_push_metadata</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">,</span> <span class="n">updown_data</span><span class="p">,</span>
+                           <span class="n">delta_format</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">delta_hash</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                           <span class="n">source_hash</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">target_hash</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">snap_name</span><span class="p">,</span>
+            <span class="s1">&#39;series&#39;</span><span class="p">:</span> <span class="n">constants</span><span class="o">.</span><span class="n">DEFAULT_SERIES</span><span class="p">,</span>
+            <span class="s1">&#39;updown_id&#39;</span><span class="p">:</span> <span class="n">updown_data</span><span class="p">[</span><span class="s1">&#39;upload_id&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;binary_filesize&#39;</span><span class="p">:</span> <span class="n">updown_data</span><span class="p">[</span><span class="s1">&#39;binary_filesize&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;source_uploaded&#39;</span><span class="p">:</span> <span class="n">updown_data</span><span class="p">[</span><span class="s1">&#39;source_uploaded&#39;</span><span class="p">],</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">delta_format</span><span class="p">:</span>
+            <span class="n">data</span><span class="p">[</span><span class="s1">&#39;delta_format&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">delta_format</span>
+            <span class="n">data</span><span class="p">[</span><span class="s1">&#39;delta_hash&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">delta_hash</span>
+            <span class="n">data</span><span class="p">[</span><span class="s1">&#39;source_hash&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">source_hash</span>
+            <span class="n">data</span><span class="p">[</span><span class="s1">&#39;target_hash&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">target_hash</span>
+        <span class="n">auth</span> <span class="o">=</span> <span class="n">_macaroon_auth</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+            <span class="s1">&#39;snap-push/&#39;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">data</span><span class="p">),</span>
+            <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;Authorization&#39;</span><span class="p">:</span> <span class="n">auth</span><span class="p">,</span>
+                     <span class="s1">&#39;Content-Type&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">,</span>
+                     <span class="s1">&#39;Accept&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">})</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">response</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StorePushError</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span> <span class="n">response</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">StatusTracker</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s1">&#39;status_details_url&#39;</span><span class="p">])</span></div>
+
+<div class="viewcode-block" id="SCAClient.snap_release"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SCAClient.snap_release">[docs]</a>    <span class="k">def</span> <span class="nf">snap_release</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_name</span><span class="p">,</span> <span class="n">revision</span><span class="p">,</span> <span class="n">channels</span><span class="p">,</span> <span class="n">delta_format</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">snap_name</span><span class="p">,</span>
+            <span class="s1">&#39;revision&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">revision</span><span class="p">),</span>
+            <span class="s1">&#39;channels&#39;</span><span class="p">:</span> <span class="n">channels</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">delta_format</span><span class="p">:</span>
+            <span class="n">data</span><span class="p">[</span><span class="s1">&#39;delta_format&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">delta_format</span>
+        <span class="n">auth</span> <span class="o">=</span> <span class="n">_macaroon_auth</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+            <span class="s1">&#39;snap-release/&#39;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">data</span><span class="p">),</span>
+            <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;Authorization&#39;</span><span class="p">:</span> <span class="n">auth</span><span class="p">,</span>
+                     <span class="s1">&#39;Content-Type&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">,</span>
+                     <span class="s1">&#39;Accept&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">})</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">response</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StoreReleaseError</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span> <span class="n">response</span><span class="p">)</span>
+
+        <span class="n">response_json</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">response_json</span></div>
+
+<div class="viewcode-block" id="SCAClient.push_validation"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SCAClient.push_validation">[docs]</a>    <span class="k">def</span> <span class="nf">push_validation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_id</span><span class="p">,</span> <span class="n">assertion</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;assertion&#39;</span><span class="p">:</span> <span class="n">assertion</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">),</span>
+        <span class="p">}</span>
+        <span class="n">auth</span> <span class="o">=</span> <span class="n">_macaroon_auth</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">put</span><span class="p">(</span>
+            <span class="s1">&#39;snaps/{}/validations&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">snap_id</span><span class="p">),</span> <span class="n">data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">data</span><span class="p">),</span>
+            <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;Authorization&#39;</span><span class="p">:</span> <span class="n">auth</span><span class="p">,</span>
+                     <span class="s1">&#39;Content-Type&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">,</span>
+                     <span class="s1">&#39;Accept&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">})</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">response</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StoreValidationError</span><span class="p">(</span><span class="n">snap_id</span><span class="p">,</span> <span class="n">response</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">response_json</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="k">except</span> <span class="n">JSONDecodeError</span><span class="p">:</span>
+            <span class="n">message</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;Invalid response from the server when pushing &#39;</span>
+                       <span class="s1">&#39;validations: {} {}&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                           <span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="n">response</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StoreValidationError</span><span class="p">(</span>
+                <span class="n">snap_id</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="s1">&#39;Invalid response from the server&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">response_json</span></div>
+
+<div class="viewcode-block" id="SCAClient.get_validations"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SCAClient.get_validations">[docs]</a>    <span class="k">def</span> <span class="nf">get_validations</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_id</span><span class="p">):</span>
+        <span class="n">auth</span> <span class="o">=</span> <span class="n">_macaroon_auth</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s1">&#39;snaps/{}/validations&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">snap_id</span><span class="p">),</span>
+            <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;Authorization&#39;</span><span class="p">:</span> <span class="n">auth</span><span class="p">,</span>
+                     <span class="s1">&#39;Content-Type&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">,</span>
+                     <span class="s1">&#39;Accept&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">})</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">response</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StoreValidationError</span><span class="p">(</span><span class="n">snap_id</span><span class="p">,</span> <span class="n">response</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">response_json</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="k">except</span> <span class="n">JSONDecodeError</span><span class="p">:</span>
+            <span class="n">message</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;Invalid response from the server when getting &#39;</span>
+                       <span class="s1">&#39;validations: {} {}&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                           <span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="n">response</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StoreValidationError</span><span class="p">(</span>
+                <span class="n">snap_id</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="s1">&#39;Invalid response from the server&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">response_json</span></div>
+
+<div class="viewcode-block" id="SCAClient.push_snap_build"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SCAClient.push_snap_build">[docs]</a>    <span class="k">def</span> <span class="nf">push_snap_build</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_id</span><span class="p">,</span> <span class="n">snap_build</span><span class="p">):</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="s1">&#39;snaps/{}/builds&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">snap_id</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">&quot;assertion&quot;</span><span class="p">:</span> <span class="n">snap_build</span><span class="p">})</span>
+        <span class="n">headers</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;Authorization&#39;</span><span class="p">:</span> <span class="n">_macaroon_auth</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="p">),</span>
+            <span class="s1">&#39;Content-Type&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span>
+        <span class="p">}</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">response</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StoreSnapBuildError</span><span class="p">(</span><span class="n">response</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SCAClient.snap_history"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SCAClient.snap_history">[docs]</a>    <span class="k">def</span> <span class="nf">snap_history</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_id</span><span class="p">,</span> <span class="n">series</span><span class="p">,</span> <span class="n">arch</span><span class="p">):</span>
+        <span class="n">qs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">series</span><span class="p">:</span>
+            <span class="n">qs</span><span class="p">[</span><span class="s1">&#39;series&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">series</span>
+        <span class="k">if</span> <span class="n">arch</span><span class="p">:</span>
+            <span class="n">qs</span><span class="p">[</span><span class="s1">&#39;arch&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">arch</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="s1">&#39;snaps/&#39;</span> <span class="o">+</span> <span class="n">snap_id</span> <span class="o">+</span> <span class="s1">&#39;/history&#39;</span>
+        <span class="k">if</span> <span class="n">qs</span><span class="p">:</span>
+            <span class="n">url</span> <span class="o">+=</span> <span class="s1">&#39;?&#39;</span> <span class="o">+</span> <span class="n">urllib</span><span class="o">.</span><span class="n">parse</span><span class="o">.</span><span class="n">urlencode</span><span class="p">(</span><span class="n">qs</span><span class="p">)</span>
+        <span class="n">auth</span> <span class="o">=</span> <span class="n">_macaroon_auth</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="n">url</span><span class="p">,</span>
+            <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;Authorization&#39;</span><span class="p">:</span> <span class="n">auth</span><span class="p">,</span>
+                     <span class="s1">&#39;Content-Type&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">,</span>
+                     <span class="s1">&#39;Accept&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">})</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">response</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StoreSnapHistoryError</span><span class="p">(</span><span class="n">response</span><span class="p">,</span> <span class="n">snap_id</span><span class="p">,</span> <span class="n">series</span><span class="p">,</span> <span class="n">arch</span><span class="p">)</span>
+
+        <span class="n">response_json</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">response_json</span></div>
+
+<div class="viewcode-block" id="SCAClient.snap_status"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SCAClient.snap_status">[docs]</a>    <span class="k">def</span> <span class="nf">snap_status</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_id</span><span class="p">,</span> <span class="n">series</span><span class="p">,</span> <span class="n">arch</span><span class="p">):</span>
+        <span class="n">qs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">series</span><span class="p">:</span>
+            <span class="n">qs</span><span class="p">[</span><span class="s1">&#39;series&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">series</span>
+        <span class="k">if</span> <span class="n">arch</span><span class="p">:</span>
+            <span class="n">qs</span><span class="p">[</span><span class="s1">&#39;arch&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">arch</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="s1">&#39;snaps/&#39;</span> <span class="o">+</span> <span class="n">snap_id</span> <span class="o">+</span> <span class="s1">&#39;/status&#39;</span>
+        <span class="k">if</span> <span class="n">qs</span><span class="p">:</span>
+            <span class="n">url</span> <span class="o">+=</span> <span class="s1">&#39;?&#39;</span> <span class="o">+</span> <span class="n">urllib</span><span class="o">.</span><span class="n">parse</span><span class="o">.</span><span class="n">urlencode</span><span class="p">(</span><span class="n">qs</span><span class="p">)</span>
+        <span class="n">auth</span> <span class="o">=</span> <span class="n">_macaroon_auth</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="n">url</span><span class="p">,</span>
+            <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;Authorization&#39;</span><span class="p">:</span> <span class="n">auth</span><span class="p">,</span>
+                     <span class="s1">&#39;Content-Type&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">,</span>
+                     <span class="s1">&#39;Accept&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">})</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">response</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StoreSnapStatusError</span><span class="p">(</span><span class="n">response</span><span class="p">,</span> <span class="n">snap_id</span><span class="p">,</span> <span class="n">series</span><span class="p">,</span> <span class="n">arch</span><span class="p">)</span>
+
+        <span class="n">response_json</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">response_json</span></div>
+
+<div class="viewcode-block" id="SCAClient.close_channels"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SCAClient.close_channels">[docs]</a>    <span class="k">def</span> <span class="nf">close_channels</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snap_id</span><span class="p">,</span> <span class="n">channel_names</span><span class="p">):</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="s1">&#39;snaps/{}/close&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">snap_id</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;channels&#39;</span><span class="p">:</span> <span class="n">channel_names</span>
+        <span class="p">}</span>
+        <span class="n">headers</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;Authorization&#39;</span><span class="p">:</span> <span class="n">_macaroon_auth</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="p">),</span>
+        <span class="p">}</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">response</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StoreChannelClosingError</span><span class="p">(</span><span class="n">response</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">results</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">results</span><span class="p">[</span><span class="s1">&#39;closed_channels&#39;</span><span class="p">],</span> <span class="n">results</span><span class="p">[</span><span class="s1">&#39;channel_maps&#39;</span><span class="p">]</span>
+        <span class="k">except</span> <span class="p">(</span><span class="n">JSONDecodeError</span><span class="p">,</span> <span class="ne">KeyError</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="s1">&#39;Invalid response from the server on channel closing:</span><span class="se">\n</span><span class="s1">&#39;</span>
+                <span class="s1">&#39;{} {}</span><span class="se">\n</span><span class="s1">{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="n">response</span><span class="o">.</span><span class="n">reason</span><span class="p">,</span>
+                                   <span class="n">response</span><span class="o">.</span><span class="n">content</span><span class="p">))</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StoreChannelClosingError</span><span class="p">(</span><span class="n">response</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SCAClient.sign_developer_agreement"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.SCAClient.sign_developer_agreement">[docs]</a>    <span class="k">def</span> <span class="nf">sign_developer_agreement</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">latest_tos_accepted</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="n">auth</span> <span class="o">=</span> <span class="n">_macaroon_auth</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conf</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;latest_tos_accepted&#39;</span><span class="p">:</span> <span class="n">latest_tos_accepted</span><span class="p">}</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+            <span class="s1">&#39;agreement/&#39;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">data</span><span class="p">),</span>
+            <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;Authorization&#39;</span><span class="p">:</span> <span class="n">auth</span><span class="p">,</span>
+                     <span class="s1">&#39;Content-Type&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">,</span>
+                     <span class="s1">&#39;Accept&#39;</span><span class="p">:</span> <span class="s1">&#39;application/json&#39;</span><span class="p">})</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">response</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">DeveloperAgreementSignError</span><span class="p">(</span><span class="n">response</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span></div></div>
+
+
+<div class="viewcode-block" id="StatusTracker"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.StatusTracker">[docs]</a><span class="k">class</span> <span class="nc">StatusTracker</span><span class="p">:</span>
+
+    <span class="n">__messages</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;being_processed&#39;</span><span class="p">:</span> <span class="s1">&#39;Processing...&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;ready_to_release&#39;</span><span class="p">:</span> <span class="s1">&#39;Ready to release!&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;need_manual_review&#39;</span><span class="p">:</span> <span class="s1">&#39;Will need manual review...&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;processing_upload_delta_error&#39;</span><span class="p">:</span> <span class="s1">&#39;Error while processing delta...&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;processing_error&#39;</span><span class="p">:</span> <span class="s1">&#39;Error while processing...&#39;</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="n">__error_codes</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;processing_error&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;processing_upload_delta_error&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;need_manual_review&#39;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">status_details_url</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__status_details_url</span> <span class="o">=</span> <span class="n">status_details_url</span>
+
+<div class="viewcode-block" id="StatusTracker.track"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.StatusTracker.track">[docs]</a>    <span class="k">def</span> <span class="nf">track</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">queue</span> <span class="o">=</span> <span class="n">Queue</span><span class="p">()</span>
+        <span class="n">thread</span> <span class="o">=</span> <span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_update_status</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">queue</span><span class="p">,))</span>
+        <span class="n">thread</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+
+        <span class="n">widgets</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Processing...&#39;</span><span class="p">,</span> <span class="n">AnimatedMarker</span><span class="p">()]</span>
+        <span class="n">progress_indicator</span> <span class="o">=</span> <span class="n">ProgressBar</span><span class="p">(</span><span class="n">widgets</span><span class="o">=</span><span class="n">widgets</span><span class="p">,</span> <span class="n">maxval</span><span class="o">=</span><span class="n">UnknownLength</span><span class="p">)</span>
+        <span class="n">progress_indicator</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+
+        <span class="n">content</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">indicator_count</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">count</span><span class="p">():</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">queue</span><span class="o">.</span><span class="n">empty</span><span class="p">():</span>
+                <span class="n">content</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">content</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">):</span>
+                    <span class="k">raise</span> <span class="n">content</span>
+                <span class="n">widgets</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_message</span><span class="p">(</span><span class="n">content</span><span class="p">)</span>
+            <span class="n">progress_indicator</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">indicator_count</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">content</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;processed&#39;</span><span class="p">):</span>
+                <span class="k">break</span>
+            <span class="n">sleep</span><span class="p">(</span><span class="mf">0.1</span><span class="p">)</span>
+        <span class="n">progress_indicator</span><span class="o">.</span><span class="n">finish</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">__content</span> <span class="o">=</span> <span class="n">content</span>
+
+        <span class="k">return</span> <span class="n">content</span></div>
+
+<div class="viewcode-block" id="StatusTracker.raise_for_code"><a class="viewcode-back" href="../../snapcraft.storeapi.html#snapcraft.storeapi.StatusTracker.raise_for_code">[docs]</a>    <span class="k">def</span> <span class="nf">raise_for_code</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__content</span><span class="p">[</span><span class="s1">&#39;code&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">__error_codes</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">StoreReviewError</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__content</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_get_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">content</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__messages</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">content</span><span class="p">[</span><span class="s1">&#39;code&#39;</span><span class="p">],</span> <span class="n">content</span><span class="p">[</span><span class="s1">&#39;code&#39;</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">_update_status</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">queue</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">content</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_status</span><span class="p">():</span>
+            <span class="n">queue</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">content</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">content</span><span class="p">[</span><span class="s1">&#39;processed&#39;</span><span class="p">]:</span>
+                <span class="k">break</span>
+            <span class="n">sleep</span><span class="p">(</span><span class="n">constants</span><span class="o">.</span><span class="n">SCAN_STATUS_POLL_DELAY</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_get_status</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">connection_errors_allowed</span> <span class="o">=</span> <span class="mi">10</span>
+        <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">content</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__status_details_url</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+            <span class="k">except</span> <span class="p">(</span><span class="n">requests</span><span class="o">.</span><span class="n">ConnectionError</span><span class="p">,</span> <span class="n">requests</span><span class="o">.</span><span class="n">HTTPError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">connection_errors_allowed</span><span class="p">:</span>
+                    <span class="k">yield</span> <span class="n">e</span>
+                <span class="n">content</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;processed&#39;</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span> <span class="s1">&#39;code&#39;</span><span class="p">:</span> <span class="s1">&#39;being_processed&#39;</span><span class="p">}</span>
+                <span class="n">connection_errors_allowed</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="k">yield</span> <span class="n">content</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  <li><a href="../snapcraft.html">snapcraft</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

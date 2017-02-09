@@ -1,0 +1,1513 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.plugins package &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="index.html" />
+    <link rel="up" title="snapcraft package" href="snapcraft.html" />
+    <link rel="next" title="snapcraft.storeapi package" href="snapcraft.storeapi.html" />
+    <link rel="prev" title="snapcraft.internal.states package" href="snapcraft.internal.states.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="snapcraft-plugins-package">
+<h1>snapcraft.plugins package<a class="headerlink" href="#snapcraft-plugins-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-snapcraft.plugins.ant">
+<span id="snapcraft-plugins-ant-module"></span><h2>snapcraft.plugins.ant module<a class="headerlink" href="#module-snapcraft.plugins.ant" title="Permalink to this headline">¶</a></h2>
+<p>The ant plugin is useful for ant based parts.</p>
+<p>The ant build system is commonly used to build Java projects.
+The plugin requires a build.xml in the root of the source tree.</p>
+<p>This plugin uses the common plugin keywords as well as those for &#8220;sources&#8221;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<p>Additionally, this plugin uses the following plugin-specific keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li>ant-properties:
+(object)
+A dictionary of key-value pairs. Set the following properties when
+running ant.</li>
+<li>ant-build-targets:
+(list of strings)
+Run the given ant targets.</li>
+</ul>
+</div></blockquote>
+<dl class="class">
+<dt id="snapcraft.plugins.ant.AntPlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.ant.</code><code class="descname">AntPlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/ant.html#AntPlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.ant.AntPlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.plugins.jdk.JdkPlugin" title="snapcraft.plugins.jdk.JdkPlugin"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.plugins.jdk.JdkPlugin</span></code></a></p>
+<dl class="method">
+<dt id="snapcraft.plugins.ant.AntPlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/ant.html#AntPlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.ant.AntPlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.ant.AntPlugin.env">
+<code class="descname">env</code><span class="sig-paren">(</span><em>root</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/ant.html#AntPlugin.env"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.ant.AntPlugin.env" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.ant.AntPlugin.get_build_properties">
+<em class="property">classmethod </em><code class="descname">get_build_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/ant.html#AntPlugin.get_build_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.ant.AntPlugin.get_build_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.ant.AntPlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/ant.html#AntPlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.ant.AntPlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.autotools">
+<span id="snapcraft-plugins-autotools-module"></span><h2>snapcraft.plugins.autotools module<a class="headerlink" href="#module-snapcraft.plugins.autotools" title="Permalink to this headline">¶</a></h2>
+<p>The autotools plugin is used for autotools based parts.</p>
+<p>Autotools based projects are the ones that have the usual
+<cite>./configure &amp;&amp; make &amp;&amp; make install</cite> instruction set.</p>
+<p>The plugin tries to build using ./configure first, if it is not there
+it will run ./autogen and if autogen is not there it will run autoreconf.</p>
+<p>This plugin uses the common plugin keywords as well as those for &#8220;sources&#8221;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<p>In addition, this plugin uses the following plugin-specific keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li>configflags:
+(list of strings)
+configure flags to pass to the build such as those shown by running
+&#8216;./configure &#8211;help&#8217;</li>
+<li>install-via:
+(enum, &#8216;destdir&#8217; or &#8216;prefix&#8217;)
+Whether to install via DESTDIR or by using &#8211;prefix (default is
+&#8216;destdir&#8217;)</li>
+</ul>
+</div></blockquote>
+<dl class="class">
+<dt id="snapcraft.plugins.autotools.AutotoolsPlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.autotools.</code><code class="descname">AutotoolsPlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/autotools.html#AutotoolsPlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.autotools.AutotoolsPlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.plugins.make.MakePlugin" title="snapcraft.plugins.make.MakePlugin"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.plugins.make.MakePlugin</span></code></a></p>
+<dl class="method">
+<dt id="snapcraft.plugins.autotools.AutotoolsPlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/autotools.html#AutotoolsPlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.autotools.AutotoolsPlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.autotools.AutotoolsPlugin.get_build_properties">
+<em class="property">classmethod </em><code class="descname">get_build_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/autotools.html#AutotoolsPlugin.get_build_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.autotools.AutotoolsPlugin.get_build_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.autotools.AutotoolsPlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/autotools.html#AutotoolsPlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.autotools.AutotoolsPlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.autotools.AutotoolsPlugin.snap_fileset">
+<code class="descname">snap_fileset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/autotools.html#AutotoolsPlugin.snap_fileset"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.autotools.AutotoolsPlugin.snap_fileset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.catkin">
+<span id="snapcraft-plugins-catkin-module"></span><h2>snapcraft.plugins.catkin module<a class="headerlink" href="#module-snapcraft.plugins.catkin" title="Permalink to this headline">¶</a></h2>
+<p>The catkin plugin is useful for building ROS parts.</p>
+<p>This plugin uses the common plugin keywords as well as those for &#8220;sources&#8221;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<p>Additionally, this plugin uses the following plugin-specific keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li>catkin-packages:
+(list of strings)
+List of catkin packages to build.</li>
+<li>source-space:
+(string)
+The source space containing Catkin packages. By default this is &#8216;src&#8217;.</li>
+<li>rosdistro:
+(string)
+The ROS distro required by this system. Defaults to &#8216;indigo&#8217;.</li>
+<li>include-roscore:
+(boolean)
+Whether or not to include roscore with the part. Defaults to true.</li>
+</ul>
+</div></blockquote>
+<dl class="class">
+<dt id="snapcraft.plugins.catkin.CatkinPlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.catkin.</code><code class="descname">CatkinPlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/catkin.html#CatkinPlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.catkin.CatkinPlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">snapcraft._baseplugin.BasePlugin</span></code></p>
+<dl class="attribute">
+<dt id="snapcraft.plugins.catkin.CatkinPlugin.PLUGIN_STAGE_SOURCES">
+<code class="descname">PLUGIN_STAGE_SOURCES</code><a class="headerlink" href="#snapcraft.plugins.catkin.CatkinPlugin.PLUGIN_STAGE_SOURCES" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.catkin.CatkinPlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/catkin.html#CatkinPlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.catkin.CatkinPlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd><p>Build Catkin packages.</p>
+<p>This function runs some pre-build steps to prepare the sources for
+building in the Snapcraft environment, builds the packages via
+catkin_make_isolated, and finally runs some post-build clean steps
+to prepare the newly-minted install to be packaged as a .snap.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.catkin.CatkinPlugin.clean_pull">
+<code class="descname">clean_pull</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/catkin.html#CatkinPlugin.clean_pull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.catkin.CatkinPlugin.clean_pull" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.catkin.CatkinPlugin.env">
+<code class="descname">env</code><span class="sig-paren">(</span><em>root</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/catkin.html#CatkinPlugin.env"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.catkin.CatkinPlugin.env" title="Permalink to this definition">¶</a></dt>
+<dd><p>Runtime environment for ROS binaries and services.</p>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.catkin.CatkinPlugin.get_pull_properties">
+<em class="property">classmethod </em><code class="descname">get_pull_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/catkin.html#CatkinPlugin.get_pull_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.catkin.CatkinPlugin.get_pull_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.catkin.CatkinPlugin.pull">
+<code class="descname">pull</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/catkin.html#CatkinPlugin.pull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.catkin.CatkinPlugin.pull" title="Permalink to this definition">¶</a></dt>
+<dd><p>Copy source into build directory and fetch dependencies.</p>
+<p>Catkin packages can specify their system dependencies in their
+package.xml. In order to support that, the Catkin packages are
+interrogated for their dependencies here. Since <cite>stage-packages</cite> are
+already installed by the time this function is run, the dependencies
+from the package.xml are pulled down explicitly.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="snapcraft.plugins.catkin.CatkinPlugin.rosdir">
+<code class="descname">rosdir</code><a class="headerlink" href="#snapcraft.plugins.catkin.CatkinPlugin.rosdir" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.catkin.CatkinPlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/catkin.html#CatkinPlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.catkin.CatkinPlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="snapcraft.plugins.catkin.SystemDependencyNotFound">
+<em class="property">exception </em><code class="descclassname">snapcraft.plugins.catkin.</code><code class="descname">SystemDependencyNotFound</code><a class="reference internal" href="_modules/snapcraft/plugins/catkin.html#SystemDependencyNotFound"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.catkin.SystemDependencyNotFound" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">Exception</span></code></p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.cmake">
+<span id="snapcraft-plugins-cmake-module"></span><h2>snapcraft.plugins.cmake module<a class="headerlink" href="#module-snapcraft.plugins.cmake" title="Permalink to this headline">¶</a></h2>
+<p>The cmake plugin is useful for building cmake based parts.</p>
+<p>These are projects that have a CMakeLists.txt that drives the build.
+The plugin requires a CMakeLists.txt in the root of the source tree.</p>
+<p>This plugin uses the common plugin keywords as well as those for &#8220;sources&#8221;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<p>Additionally, this plugin uses the following plugin-specific keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li>configflags:
+(list of strings)
+configure flags to pass to the build using the common cmake semantics.</li>
+</ul>
+</div></blockquote>
+<dl class="class">
+<dt id="snapcraft.plugins.cmake.CMakePlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.cmake.</code><code class="descname">CMakePlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/cmake.html#CMakePlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.cmake.CMakePlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.plugins.make.MakePlugin" title="snapcraft.plugins.make.MakePlugin"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.plugins.make.MakePlugin</span></code></a></p>
+<dl class="method">
+<dt id="snapcraft.plugins.cmake.CMakePlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/cmake.html#CMakePlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.cmake.CMakePlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.cmake.CMakePlugin.get_build_properties">
+<em class="property">classmethod </em><code class="descname">get_build_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/cmake.html#CMakePlugin.get_build_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.cmake.CMakePlugin.get_build_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.cmake.CMakePlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/cmake.html#CMakePlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.cmake.CMakePlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.copy">
+<span id="snapcraft-plugins-copy-module"></span><h2>snapcraft.plugins.copy module<a class="headerlink" href="#module-snapcraft.plugins.copy" title="Permalink to this headline">¶</a></h2>
+<p>The copy plugin is useful for assets or other sources with no build system.</p>
+<p>This plugin is DEPRECATED in favor of the <cite>dump</cite> plugin.</p>
+<p>This plugin uses the common plugin keywords as well as those for &#8216;sources&#8217;
+(though the &#8216;source&#8217; keyword is optional). For more information check the
+&#8216;plugins&#8217; topic for the former and the &#8216;sources&#8217; topic for the latter.</p>
+<p>Additionally, this plugin uses the following plugin-specific keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li>files:
+(object)
+A dictionary of key-value pairs. The key is the current location of the
+file relative to snapcraft.yaml (unless <cite>source</cite> is specified, in which
+case it&#8217;s relative to the root of the source). The value is where to
+place the file in-snap, and is relative to the root of the snap. This
+works like <cite>cp -r &lt;key&gt; &lt;value&gt;</cite>. Note that globbing is supported for the
+key, allowing one to use <a href="#id1"><span class="problematic" id="id2">*</span></a>, ?, and character ranges expressed with [].</li>
+</ul>
+</div></blockquote>
+<dl class="class">
+<dt id="snapcraft.plugins.copy.CopyPlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.copy.</code><code class="descname">CopyPlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/copy.html#CopyPlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.copy.CopyPlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">snapcraft._baseplugin.BasePlugin</span></code></p>
+<dl class="method">
+<dt id="snapcraft.plugins.copy.CopyPlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/copy.html#CopyPlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.copy.CopyPlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.copy.CopyPlugin.enable_cross_compilation">
+<code class="descname">enable_cross_compilation</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/copy.html#CopyPlugin.enable_cross_compilation"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.copy.CopyPlugin.enable_cross_compilation" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.copy.CopyPlugin.get_build_properties">
+<em class="property">classmethod </em><code class="descname">get_build_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/copy.html#CopyPlugin.get_build_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.copy.CopyPlugin.get_build_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.copy.CopyPlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/copy.html#CopyPlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.copy.CopyPlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.dump">
+<span id="snapcraft-plugins-dump-module"></span><h2>snapcraft.plugins.dump module<a class="headerlink" href="#module-snapcraft.plugins.dump" title="Permalink to this headline">¶</a></h2>
+<p>This plugin just dumps the content from a specified source.</p>
+<p>This plugin uses the common plugin keywords as well as those for &#8216;sources&#8217;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<p>In the cases where dumping the content needs some mangling or organizing
+one would take advantage of the core functionalities available to plugins
+such as: <cite>filesets</cite>, <cite>stage</cite>, <cite>snap</cite> and <cite>organize</cite>.</p>
+<dl class="class">
+<dt id="snapcraft.plugins.dump.DumpPlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.dump.</code><code class="descname">DumpPlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/dump.html#DumpPlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.dump.DumpPlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">snapcraft._baseplugin.BasePlugin</span></code></p>
+<dl class="method">
+<dt id="snapcraft.plugins.dump.DumpPlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/dump.html#DumpPlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.dump.DumpPlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.dump.DumpPlugin.enable_cross_compilation">
+<code class="descname">enable_cross_compilation</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/dump.html#DumpPlugin.enable_cross_compilation"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.dump.DumpPlugin.enable_cross_compilation" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.go">
+<span id="snapcraft-plugins-go-module"></span><h2>snapcraft.plugins.go module<a class="headerlink" href="#module-snapcraft.plugins.go" title="Permalink to this headline">¶</a></h2>
+<p>The go plugin can be used for go projects using <cite>go get</cite>.</p>
+<p>This plugin uses the common plugin keywords as well as those for &#8220;sources&#8221;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<p>Additionally, this plugin uses the following plugin-specific keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li>go-packages:
+(list of strings)
+Go packages to fetch, these must be a &#8220;main&#8221; package. Dependencies
+are pulled in automatically by <cite>go get</cite>.
+Packages that are not &#8220;main&#8221; will not cause an error, but would
+not be useful either.
+If the package is a part of the go-importpath the local package
+corresponding to those sources will be used.</li>
+<li>go-importpath:
+(string)
+This entry tells the checked out <cite>source</cite> to live within a certain path
+within <cite>GOPATH</cite>.
+This is not needed and does not affect <cite>go-packages</cite>.</li>
+<li>go-buildtags:
+(list of strings)
+Tags to use during the go build. Default is not to use any build tags.</li>
+</ul>
+</div></blockquote>
+<dl class="class">
+<dt id="snapcraft.plugins.go.GoPlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.go.</code><code class="descname">GoPlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/go.html#GoPlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.go.GoPlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">snapcraft._baseplugin.BasePlugin</span></code></p>
+<dl class="method">
+<dt id="snapcraft.plugins.go.GoPlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/go.html#GoPlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.go.GoPlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.go.GoPlugin.clean_build">
+<code class="descname">clean_build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/go.html#GoPlugin.clean_build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.go.GoPlugin.clean_build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.go.GoPlugin.clean_pull">
+<code class="descname">clean_pull</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/go.html#GoPlugin.clean_pull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.go.GoPlugin.clean_pull" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.go.GoPlugin.get_build_properties">
+<em class="property">classmethod </em><code class="descname">get_build_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/go.html#GoPlugin.get_build_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.go.GoPlugin.get_build_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.go.GoPlugin.get_pull_properties">
+<em class="property">classmethod </em><code class="descname">get_pull_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/go.html#GoPlugin.get_pull_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.go.GoPlugin.get_pull_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.go.GoPlugin.pull">
+<code class="descname">pull</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/go.html#GoPlugin.pull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.go.GoPlugin.pull" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.go.GoPlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/go.html#GoPlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.go.GoPlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.godeps">
+<span id="snapcraft-plugins-godeps-module"></span><h2>snapcraft.plugins.godeps module<a class="headerlink" href="#module-snapcraft.plugins.godeps" title="Permalink to this headline">¶</a></h2>
+<p>The godeps plugin can be used for godeps-enabled go projects.</p>
+<p>These projects have a file containing information about the project&#8217;s
+dependencies. This file is typically called &#8220;dependencies.tsv,&#8221; but may be
+named anything.</p>
+<p>This plugin uses the common plugin keywords as well as those for &#8220;sources&#8221;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<p>Additionally, this plugin uses the following plugin-specific keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li>go-packages:
+(list of strings)
+Go packages to build/install, these must be a &#8220;main&#8221; package.
+Dependencies should have already been retrieved by the <cite>godeps-file</cite>
+used for this part.
+Packages that are not &#8220;main&#8221; will not cause an error, but would
+not be useful either.</li>
+<li>godeps-file:
+(string)
+Path to the godeps dependencies file contained within the source
+(default: dependencies.tsv)</li>
+<li>go-importpath:
+(string)
+This entry tells the checked out <cite>source</cite> to live within a certain path
+within <cite>GOPATH</cite>. This is required in order to work with absolute imports
+and import path checking.</li>
+</ul>
+</div></blockquote>
+<dl class="class">
+<dt id="snapcraft.plugins.godeps.GodepsPlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.godeps.</code><code class="descname">GodepsPlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/godeps.html#GodepsPlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.godeps.GodepsPlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">snapcraft._baseplugin.BasePlugin</span></code></p>
+<dl class="method">
+<dt id="snapcraft.plugins.godeps.GodepsPlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/godeps.html#GodepsPlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.godeps.GodepsPlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.godeps.GodepsPlugin.clean_build">
+<code class="descname">clean_build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/godeps.html#GodepsPlugin.clean_build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.godeps.GodepsPlugin.clean_build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.godeps.GodepsPlugin.clean_pull">
+<code class="descname">clean_pull</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/godeps.html#GodepsPlugin.clean_pull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.godeps.GodepsPlugin.clean_pull" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.godeps.GodepsPlugin.get_build_properties">
+<em class="property">classmethod </em><code class="descname">get_build_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/godeps.html#GodepsPlugin.get_build_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.godeps.GodepsPlugin.get_build_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.godeps.GodepsPlugin.get_pull_properties">
+<em class="property">classmethod </em><code class="descname">get_pull_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/godeps.html#GodepsPlugin.get_pull_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.godeps.GodepsPlugin.get_pull_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.godeps.GodepsPlugin.pull">
+<code class="descname">pull</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/godeps.html#GodepsPlugin.pull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.godeps.GodepsPlugin.pull" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.godeps.GodepsPlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/godeps.html#GodepsPlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.godeps.GodepsPlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.gradle">
+<span id="snapcraft-plugins-gradle-module"></span><h2>snapcraft.plugins.gradle module<a class="headerlink" href="#module-snapcraft.plugins.gradle" title="Permalink to this headline">¶</a></h2>
+<p>This plugin is useful for building parts that use gradle.</p>
+<p>The gradle build system is commonly used to build Java projects.
+The plugin requires a pom.xml in the root of the source tree.</p>
+<p>This plugin uses the common plugin keywords as well as those for &#8220;sources&#8221;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<p>Additionally, this plugin uses the following plugin-specific keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li>gradle-options:
+(list of strings)
+Flags to pass to the build using the gradle semantics for parameters.
+The &#8216;jar&#8217; option is always passed in as the last parameter.</li>
+<li>gradle-output-dir:
+(string; default: &#8216;build/libs&#8217;)
+The output directory where the resulting jar or war files from gradle[w]
+are generated.</li>
+</ul>
+</div></blockquote>
+<dl class="class">
+<dt id="snapcraft.plugins.gradle.GradlePlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.gradle.</code><code class="descname">GradlePlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/gradle.html#GradlePlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.gradle.GradlePlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.plugins.jdk.JdkPlugin" title="snapcraft.plugins.jdk.JdkPlugin"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.plugins.jdk.JdkPlugin</span></code></a></p>
+<dl class="method">
+<dt id="snapcraft.plugins.gradle.GradlePlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/gradle.html#GradlePlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.gradle.GradlePlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.gradle.GradlePlugin.get_build_properties">
+<em class="property">classmethod </em><code class="descname">get_build_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/gradle.html#GradlePlugin.get_build_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.gradle.GradlePlugin.get_build_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.gradle.GradlePlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/gradle.html#GradlePlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.gradle.GradlePlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.gulp">
+<span id="snapcraft-plugins-gulp-module"></span><h2>snapcraft.plugins.gulp module<a class="headerlink" href="#module-snapcraft.plugins.gulp" title="Permalink to this headline">¶</a></h2>
+<p>This plugin is used for gulp.js, the streaming build system.</p>
+<p>The plugin uses gulp to drive the build. It requires a gulpfile.js in
+the root of the source.</p>
+<p>This plugin uses the common plugin keywords as well as those for &#8220;sources&#8221;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<p>Additionally, this plugin uses the following plugin-specific keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li>gulp-tasks:
+(list)
+A list of gulp tasks to run.</li>
+<li>node-engine:
+(string)
+The version of nodejs to use for the build.</li>
+</ul>
+</div></blockquote>
+<dl class="class">
+<dt id="snapcraft.plugins.gulp.GulpPlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.gulp.</code><code class="descname">GulpPlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/gulp.html#GulpPlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.gulp.GulpPlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">snapcraft._baseplugin.BasePlugin</span></code></p>
+<dl class="method">
+<dt id="snapcraft.plugins.gulp.GulpPlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/gulp.html#GulpPlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.gulp.GulpPlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.gulp.GulpPlugin.clean_pull">
+<code class="descname">clean_pull</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/gulp.html#GulpPlugin.clean_pull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.gulp.GulpPlugin.clean_pull" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.gulp.GulpPlugin.get_build_properties">
+<em class="property">classmethod </em><code class="descname">get_build_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/gulp.html#GulpPlugin.get_build_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.gulp.GulpPlugin.get_build_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.gulp.GulpPlugin.get_pull_properties">
+<em class="property">classmethod </em><code class="descname">get_pull_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/gulp.html#GulpPlugin.get_pull_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.gulp.GulpPlugin.get_pull_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.gulp.GulpPlugin.pull">
+<code class="descname">pull</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/gulp.html#GulpPlugin.pull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.gulp.GulpPlugin.pull" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.gulp.GulpPlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/gulp.html#GulpPlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.gulp.GulpPlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.jdk">
+<span id="snapcraft-plugins-jdk-module"></span><h2>snapcraft.plugins.jdk module<a class="headerlink" href="#module-snapcraft.plugins.jdk" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="snapcraft.plugins.jdk.JdkPlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.jdk.</code><code class="descname">JdkPlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/jdk.html#JdkPlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.jdk.JdkPlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">snapcraft._baseplugin.BasePlugin</span></code></p>
+<dl class="method">
+<dt id="snapcraft.plugins.jdk.JdkPlugin.env">
+<code class="descname">env</code><span class="sig-paren">(</span><em>root</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/jdk.html#JdkPlugin.env"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.jdk.JdkPlugin.env" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.jdk.JdkPlugin.snap_fileset">
+<code class="descname">snap_fileset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/jdk.html#JdkPlugin.snap_fileset"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.jdk.JdkPlugin.snap_fileset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.kbuild">
+<span id="snapcraft-plugins-kbuild-module"></span><h2>snapcraft.plugins.kbuild module<a class="headerlink" href="#module-snapcraft.plugins.kbuild" title="Permalink to this headline">¶</a></h2>
+<p>The kbuild plugin is used for building kbuild based projects as snapcraft
+parts.</p>
+<p>This plugin is based on the snapcraft.BasePlugin and supports the properties
+provided by that plus the following kbuild specific options with semantics as
+explained above:</p>
+<blockquote>
+<div><ul class="simple">
+<li>kdefconfig:
+(list of kdefconfigs)
+defconfig target to use as the base configuration. default: &#8220;defconfig&#8221;</li>
+<li>kconfigfile:
+(filepath)
+path to file to use as base configuration. If provided this option wins
+over kdefconfig. default: None</li>
+<li>kconfigs
+(list of strings)
+explicit list of configs to force; this will override the configs that
+were set as base through kdefconfig and kconfigfile and dependent configs
+will be fixed using the defaults encoded in the kbuild config
+definitions.  If you don&#8217;t want default for one or more implicit configs
+coming out of these, just add them to this list as well.</li>
+</ul>
+</div></blockquote>
+<p>The plugin applies your selected defconfig first by running</p>
+<blockquote>
+<div>make defconfig</div></blockquote>
+<p>and then uses the kconfigs flag to augment the resulting config by prepending
+the configured kconfigs values to the .config and running</p>
+<blockquote>
+<div>&#8220;yes&#8221; &#8220;&#8221; | make oldconfig</div></blockquote>
+<p>to create an updated .config file.</p>
+<p>If kconfigfile is provided this plugin will use the provided config file
+wholesale as the starting point instead of make $kdefconfig. In case user
+configures both a kdefconfig as well as kconfigfile, kconfigfile approach will
+be used.</p>
+<dl class="class">
+<dt id="snapcraft.plugins.kbuild.KBuildPlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.kbuild.</code><code class="descname">KBuildPlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/kbuild.html#KBuildPlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.kbuild.KBuildPlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">snapcraft._baseplugin.BasePlugin</span></code></p>
+<dl class="method">
+<dt id="snapcraft.plugins.kbuild.KBuildPlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/kbuild.html#KBuildPlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.kbuild.KBuildPlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.kbuild.KBuildPlugin.do_base_config">
+<code class="descname">do_base_config</code><span class="sig-paren">(</span><em>config_path</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/kbuild.html#KBuildPlugin.do_base_config"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.kbuild.KBuildPlugin.do_base_config" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.kbuild.KBuildPlugin.do_build">
+<code class="descname">do_build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/kbuild.html#KBuildPlugin.do_build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.kbuild.KBuildPlugin.do_build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.kbuild.KBuildPlugin.do_install">
+<code class="descname">do_install</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/kbuild.html#KBuildPlugin.do_install"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.kbuild.KBuildPlugin.do_install" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.kbuild.KBuildPlugin.do_patch_config">
+<code class="descname">do_patch_config</code><span class="sig-paren">(</span><em>config_path</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/kbuild.html#KBuildPlugin.do_patch_config"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.kbuild.KBuildPlugin.do_patch_config" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.kbuild.KBuildPlugin.do_remake_config">
+<code class="descname">do_remake_config</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/kbuild.html#KBuildPlugin.do_remake_config"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.kbuild.KBuildPlugin.do_remake_config" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.kbuild.KBuildPlugin.get_build_properties">
+<em class="property">classmethod </em><code class="descname">get_build_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/kbuild.html#KBuildPlugin.get_build_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.kbuild.KBuildPlugin.get_build_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.kbuild.KBuildPlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/kbuild.html#KBuildPlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.kbuild.KBuildPlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.kernel">
+<span id="snapcraft-plugins-kernel-module"></span><h2>snapcraft.plugins.kernel module<a class="headerlink" href="#module-snapcraft.plugins.kernel" title="Permalink to this headline">¶</a></h2>
+<p>The kernel plugin refines the generic kbuild plugin to allow building
+kernel snaps with all the bells and whistles in one shot...</p>
+<dl class="docutils">
+<dt>WARNING: this plugin&#8217;s API is unstable. The cross compiling support is</dt>
+<dd>experimental.</dd>
+</dl>
+<p>The following kernel specific options are provided by this plugin:</p>
+<blockquote>
+<div><ul class="simple">
+<li>kernel-image-target:
+(yaml object or string; default: bzImage)
+the default target is bzImage and can be set to any specific
+target.
+For more complex cases where one would want to use
+the same snapcraft.yaml to target multiple architectures a
+yaml object can be used. This yaml object would be a map of
+debian architecture and kernel image build targets.</li>
+<li>kernel-initrd-modules:
+(array of string)
+list of modules to include in initrd; note that kernel snaps do not
+provide the core boot logic which comes from snappy Ubuntu Core
+OS snap. Include all modules you need for mounting rootfs here.</li>
+<li>kernel-with-firmware:
+(boolean; default: True)
+use this flag to disable shipping binary firmwares</li>
+<li>kernel-initrd-firmware:
+(array of string)
+list of firmware files to include in the initrd; these need to be
+relative paths to .installdir and this option does not work if you
+disable building firmware</li>
+<li>kernel-initrd-compression:
+(string; default: gz)
+initrd compression to use; the only supported value now is &#8216;gz&#8217;.</li>
+<li>kernel-device-trees:
+(array of string)
+list of device trees to build, the format is &lt;device-tree-name&gt;.dts.</li>
+</ul>
+</div></blockquote>
+<dl class="class">
+<dt id="snapcraft.plugins.kernel.KernelPlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.kernel.</code><code class="descname">KernelPlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/kernel.html#KernelPlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.kernel.KernelPlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.plugins.kbuild.KBuildPlugin" title="snapcraft.plugins.kbuild.KBuildPlugin"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.plugins.kbuild.KBuildPlugin</span></code></a></p>
+<dl class="attribute">
+<dt id="snapcraft.plugins.kernel.KernelPlugin.compression_cmd">
+<code class="descname">compression_cmd</code><a class="headerlink" href="#snapcraft.plugins.kernel.KernelPlugin.compression_cmd" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.kernel.KernelPlugin.do_install">
+<code class="descname">do_install</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/kernel.html#KernelPlugin.do_install"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.kernel.KernelPlugin.do_install" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.kernel.KernelPlugin.enable_cross_compilation">
+<code class="descname">enable_cross_compilation</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/kernel.html#KernelPlugin.enable_cross_compilation"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.kernel.KernelPlugin.enable_cross_compilation" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.kernel.KernelPlugin.get_build_properties">
+<em class="property">classmethod </em><code class="descname">get_build_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/kernel.html#KernelPlugin.get_build_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.kernel.KernelPlugin.get_build_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.kernel.KernelPlugin.pull">
+<code class="descname">pull</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/kernel.html#KernelPlugin.pull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.kernel.KernelPlugin.pull" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.kernel.KernelPlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/kernel.html#KernelPlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.kernel.KernelPlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.make">
+<span id="snapcraft-plugins-make-module"></span><h2>snapcraft.plugins.make module<a class="headerlink" href="#module-snapcraft.plugins.make" title="Permalink to this headline">¶</a></h2>
+<p>The make plugin is useful for building make based parts.</p>
+<p>Make based projects are projects that have a Makefile that drives the
+build.</p>
+<p>This plugin always runs &#8216;make&#8217; followed by &#8216;make install&#8217;, except when
+the &#8216;artifacts&#8217; keyword is used.</p>
+<p>This plugin uses the common plugin keywords as well as those for &#8220;sources&#8221;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<p>Additionally, this plugin uses the following plugin-specific keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li>artifacts:
+(list)
+Link/copy the given files from the make output to the snap
+installation directory. If specified, the &#8216;make install&#8217;
+step will be skipped.</li>
+<li>makefile:
+(string)
+Use the given file as the makefile.</li>
+<li>make-parameters:
+(list of strings)
+Pass the given parameters to the make command.</li>
+<li>make-install-var:
+(string; default: DESTDIR)
+Use this variable to redirect the installation into the snap.</li>
+</ul>
+</div></blockquote>
+<dl class="class">
+<dt id="snapcraft.plugins.make.MakePlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.make.</code><code class="descname">MakePlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/make.html#MakePlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.make.MakePlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">snapcraft._baseplugin.BasePlugin</span></code></p>
+<dl class="method">
+<dt id="snapcraft.plugins.make.MakePlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/make.html#MakePlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.make.MakePlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.make.MakePlugin.get_build_properties">
+<em class="property">classmethod </em><code class="descname">get_build_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/make.html#MakePlugin.get_build_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.make.MakePlugin.get_build_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.make.MakePlugin.make">
+<code class="descname">make</code><span class="sig-paren">(</span><em>env=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/make.html#MakePlugin.make"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.make.MakePlugin.make" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.make.MakePlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/make.html#MakePlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.make.MakePlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.maven">
+<span id="snapcraft-plugins-maven-module"></span><h2>snapcraft.plugins.maven module<a class="headerlink" href="#module-snapcraft.plugins.maven" title="Permalink to this headline">¶</a></h2>
+<p>This plugin is useful for building parts that use maven.</p>
+<p>The maven build system is commonly used to build Java projects.
+The plugin requires a pom.xml in the root of the source tree.</p>
+<p>This plugin uses the common plugin keywords as well as those for &#8220;sources&#8221;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<p>Additionally, this plugin uses the following plugin-specific keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li>maven-options:
+(list of strings)
+flags to pass to the build using the maven semantics for parameters.</li>
+</ul>
+</div></blockquote>
+<dl class="class">
+<dt id="snapcraft.plugins.maven.MavenPlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.maven.</code><code class="descname">MavenPlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/maven.html#MavenPlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.maven.MavenPlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.plugins.jdk.JdkPlugin" title="snapcraft.plugins.jdk.JdkPlugin"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.plugins.jdk.JdkPlugin</span></code></a></p>
+<dl class="method">
+<dt id="snapcraft.plugins.maven.MavenPlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/maven.html#MavenPlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.maven.MavenPlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.maven.MavenPlugin.get_build_properties">
+<em class="property">classmethod </em><code class="descname">get_build_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/maven.html#MavenPlugin.get_build_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.maven.MavenPlugin.get_build_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.maven.MavenPlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/maven.html#MavenPlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.maven.MavenPlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.nil">
+<span id="snapcraft-plugins-nil-module"></span><h2>snapcraft.plugins.nil module<a class="headerlink" href="#module-snapcraft.plugins.nil" title="Permalink to this headline">¶</a></h2>
+<p>The nil plugin is useful for parts with no source.</p>
+<p>Using this, parts can be defined purely by utilizing properties automatically
+included by Snapcraft, e.g. stage-packages.</p>
+<dl class="class">
+<dt id="snapcraft.plugins.nil.NilPlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.nil.</code><code class="descname">NilPlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/nil.html#NilPlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.nil.NilPlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">snapcraft._baseplugin.BasePlugin</span></code></p>
+<dl class="method">
+<dt id="snapcraft.plugins.nil.NilPlugin.enable_cross_compilation">
+<code class="descname">enable_cross_compilation</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/nil.html#NilPlugin.enable_cross_compilation"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.nil.NilPlugin.enable_cross_compilation" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.nil.NilPlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/nil.html#NilPlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.nil.NilPlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.nodejs">
+<span id="snapcraft-plugins-nodejs-module"></span><h2>snapcraft.plugins.nodejs module<a class="headerlink" href="#module-snapcraft.plugins.nodejs" title="Permalink to this headline">¶</a></h2>
+<p>The nodejs plugin is useful for node/npm based parts.</p>
+<p>The plugin uses node to install dependencies from <cite>package.json</cite>. It
+also sets up binaries defined in <cite>package.json</cite> into the <cite>PATH</cite>.</p>
+<p>This plugin uses the common plugin keywords as well as those for &#8220;sources&#8221;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<p>Additionally, this plugin uses the following plugin-specific keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li>node-packages:
+(list)
+A list of dependencies to fetch using npm.</li>
+<li>node-engine:
+(string)
+The version of nodejs you want the snap to run on.</li>
+<li>npm-run:
+(list)
+A list of targets to <cite>npm run</cite>.
+These targets will be run in order, after <cite>npm install</cite></li>
+</ul>
+</div></blockquote>
+<dl class="class">
+<dt id="snapcraft.plugins.nodejs.NodePlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.nodejs.</code><code class="descname">NodePlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/nodejs.html#NodePlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.nodejs.NodePlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">snapcraft._baseplugin.BasePlugin</span></code></p>
+<dl class="method">
+<dt id="snapcraft.plugins.nodejs.NodePlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/nodejs.html#NodePlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.nodejs.NodePlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.nodejs.NodePlugin.clean_pull">
+<code class="descname">clean_pull</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/nodejs.html#NodePlugin.clean_pull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.nodejs.NodePlugin.clean_pull" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.nodejs.NodePlugin.get_build_properties">
+<em class="property">classmethod </em><code class="descname">get_build_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/nodejs.html#NodePlugin.get_build_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.nodejs.NodePlugin.get_build_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.nodejs.NodePlugin.get_pull_properties">
+<em class="property">classmethod </em><code class="descname">get_pull_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/nodejs.html#NodePlugin.get_pull_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.nodejs.NodePlugin.get_pull_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.nodejs.NodePlugin.pull">
+<code class="descname">pull</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/nodejs.html#NodePlugin.pull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.nodejs.NodePlugin.pull" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.nodejs.NodePlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/nodejs.html#NodePlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.nodejs.NodePlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.plugins.nodejs.get_nodejs_release">
+<code class="descclassname">snapcraft.plugins.nodejs.</code><code class="descname">get_nodejs_release</code><span class="sig-paren">(</span><em>node_engine</em>, <em>arch</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/nodejs.html#get_nodejs_release"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.nodejs.get_nodejs_release" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.plainbox_provider">
+<span id="snapcraft-plugins-plainbox-provider-module"></span><h2>snapcraft.plugins.plainbox_provider module<a class="headerlink" href="#module-snapcraft.plugins.plainbox_provider" title="Permalink to this headline">¶</a></h2>
+<p>Create parts containing a Plainbox test collection known as a provider.</p>
+<p>Plainbox is a toolkit consisting of python3 library, development tools,
+documentation and examples. It is targeted at developers working on testing or
+certification applications and authors creating tests for such applications.
+More information: <a class="reference external" href="http://plainbox.readthedocs.org/en/latest/">http://plainbox.readthedocs.org/en/latest/</a></p>
+<p>To find out more about authoring a plainbox provider, see the following
+documentation: <a class="reference external" href="http://plainbox.readthedocs.org/en/latest/author/providers.html">http://plainbox.readthedocs.org/en/latest/author/providers.html</a></p>
+<p>This plugin uses the common plugin keywords as well as those for &#8220;sources&#8221;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<dl class="class">
+<dt id="snapcraft.plugins.plainbox_provider.PlainboxProviderPlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.plainbox_provider.</code><code class="descname">PlainboxProviderPlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/plainbox_provider.html#PlainboxProviderPlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.plainbox_provider.PlainboxProviderPlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">snapcraft._baseplugin.BasePlugin</span></code></p>
+<dl class="method">
+<dt id="snapcraft.plugins.plainbox_provider.PlainboxProviderPlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/plainbox_provider.html#PlainboxProviderPlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.plainbox_provider.PlainboxProviderPlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.python">
+<span id="snapcraft-plugins-python-module"></span><h2>snapcraft.plugins.python module<a class="headerlink" href="#module-snapcraft.plugins.python" title="Permalink to this headline">¶</a></h2>
+<p>The python plugin can be used for python 2 or 3 based parts.</p>
+<p>It can be used for python projects where you would want to do:</p>
+<blockquote>
+<div><ul class="simple">
+<li>import python modules with a requirements.txt</li>
+<li>build a python project that has a setup.py</li>
+<li>install packages straight from pip</li>
+</ul>
+</div></blockquote>
+<p>This plugin uses the common plugin keywords as well as those for &#8220;sources&#8221;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<p>Additionally, this plugin uses the following plugin-specific keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li>requirements:
+(string)
+Path to a requirements.txt file</li>
+<li>constraints:
+(string)
+Path to a constraints file</li>
+<li>process-dependency-links:
+(bool; default: false)
+Enable the processing of dependency links.</li>
+<li>python-packages:
+(list)
+A list of dependencies to get from PyPi</li>
+<li>python-version:
+(string; default: python3)
+The python version to use. Valid options are: python2 and python3</li>
+</ul>
+</div></blockquote>
+<p>If the plugin finds a python interpreter with a basename that matches
+<cite>python-version</cite> in the &lt;stage&gt; directory on the following fixed path:
+<cite>&lt;stage-dir&gt;/usr/bin/&lt;python-interpreter&gt;</cite> then this interpreter would
+be preferred instead and no interpreter would be brought in through
+<cite>stage-packages</cite> mechanisms.</p>
+<dl class="class">
+<dt id="snapcraft.plugins.python.PythonPlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.python.</code><code class="descname">PythonPlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/python.html#PythonPlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.python.PythonPlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">snapcraft._baseplugin.BasePlugin</span></code></p>
+<dl class="method">
+<dt id="snapcraft.plugins.python.PythonPlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/python.html#PythonPlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.python.PythonPlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.python.PythonPlugin.clean_pull">
+<code class="descname">clean_pull</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/python.html#PythonPlugin.clean_pull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.python.PythonPlugin.clean_pull" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.python.PythonPlugin.get_pull_properties">
+<em class="property">classmethod </em><code class="descname">get_pull_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/python.html#PythonPlugin.get_pull_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.python.PythonPlugin.get_pull_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="snapcraft.plugins.python.PythonPlugin.plugin_build_packages">
+<code class="descname">plugin_build_packages</code><a class="headerlink" href="#snapcraft.plugins.python.PythonPlugin.plugin_build_packages" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="snapcraft.plugins.python.PythonPlugin.plugin_stage_packages">
+<code class="descname">plugin_stage_packages</code><a class="headerlink" href="#snapcraft.plugins.python.PythonPlugin.plugin_stage_packages" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.python.PythonPlugin.pull">
+<code class="descname">pull</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/python.html#PythonPlugin.pull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.python.PythonPlugin.pull" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.python.PythonPlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/python.html#PythonPlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.python.PythonPlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.python.PythonPlugin.snap_fileset">
+<code class="descname">snap_fileset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/python.html#PythonPlugin.snap_fileset"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.python.PythonPlugin.snap_fileset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="snapcraft.plugins.python.PythonPlugin.stage_packages">
+<code class="descname">stage_packages</code><a class="headerlink" href="#snapcraft.plugins.python.PythonPlugin.stage_packages" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="snapcraft.plugins.python.simple_env_bzr">
+<code class="descclassname">snapcraft.plugins.python.</code><code class="descname">simple_env_bzr</code><span class="sig-paren">(</span><em>bin_dir</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/python.html#simple_env_bzr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.python.simple_env_bzr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create an appropriate environment to run bzr.</p>
+<p>The python plugin sets up PYTHONUSERBASE and PYTHONHOME which
+conflicts with bzr when using python3 as those two environment
+variables will make bzr look for modules in the wrong location.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.python2">
+<span id="snapcraft-plugins-python2-module"></span><h2>snapcraft.plugins.python2 module<a class="headerlink" href="#module-snapcraft.plugins.python2" title="Permalink to this headline">¶</a></h2>
+<p>The python2 plugin can be used for python 2 based parts.</p>
+<p>This plugin is DEPRECATED in favor of the python plugin.</p>
+<p>The python2 plugin can be used for python 2 projects where you would
+want to do:</p>
+<blockquote>
+<div><ul class="simple">
+<li>import python modules with a requirements.txt</li>
+<li>build a python project that has a setup.py</li>
+<li>install sources straight from pip</li>
+</ul>
+</div></blockquote>
+<p>This plugin uses the common plugin keywords as well as those for &#8220;sources&#8221;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<p>Additionally, this plugin uses the following plugin-specific keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li>requirements:
+(string)
+Path to a requirements.txt file</li>
+<li>constraints:
+(string)
+Path to a constraints file</li>
+<li>process-dependency-links:
+(bool; default: false)
+Enable the processing of dependency links.</li>
+<li>python-packages:
+(list)
+A list of dependencies to get from PyPi</li>
+</ul>
+</div></blockquote>
+<dl class="class">
+<dt id="snapcraft.plugins.python2.Python2Plugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.python2.</code><code class="descname">Python2Plugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/python2.html#Python2Plugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.python2.Python2Plugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.plugins.python.PythonPlugin" title="snapcraft.plugins.python.PythonPlugin"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.plugins.python.PythonPlugin</span></code></a></p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.python3">
+<span id="snapcraft-plugins-python3-module"></span><h2>snapcraft.plugins.python3 module<a class="headerlink" href="#module-snapcraft.plugins.python3" title="Permalink to this headline">¶</a></h2>
+<p>The python3 plugin can be used for python 3 based parts.</p>
+<p>This plugin is DEPRECATED in favor of the python plugin.</p>
+<p>The python3 plugin can be used for python 3 projects where you would
+want to do:</p>
+<blockquote>
+<div><ul class="simple">
+<li>import python modules with a requirements.txt</li>
+<li>build a python project that has a setup.py</li>
+<li>install sources straight from pip</li>
+</ul>
+</div></blockquote>
+<p>This plugin uses the common plugin keywords as well as those for &#8220;sources&#8221;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<p>Additionally, this plugin uses the following plugin-specific keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li>requirements:
+(string)
+Path to a requirements.txt file</li>
+<li>constraints:
+(string)
+Path to a constraints file</li>
+<li>process-dependency-links:
+(bool; default: false)
+Enable the processing of dependency links.</li>
+<li>python-packages:
+(list)
+A list of dependencies to get from PyPi</li>
+</ul>
+</div></blockquote>
+<dl class="class">
+<dt id="snapcraft.plugins.python3.Python3Plugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.python3.</code><code class="descname">Python3Plugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/python3.html#Python3Plugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.python3.Python3Plugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#snapcraft.plugins.python.PythonPlugin" title="snapcraft.plugins.python.PythonPlugin"><code class="xref py py-class docutils literal"><span class="pre">snapcraft.plugins.python.PythonPlugin</span></code></a></p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.qbs">
+<span id="snapcraft-plugins-qbs-module"></span><h2>snapcraft.plugins.qbs module<a class="headerlink" href="#module-snapcraft.plugins.qbs" title="Permalink to this headline">¶</a></h2>
+<p>The QBS plugin is useful for building parts that use the Qt Build Suite.</p>
+<p>These are projects that are built using .qbs files and are using gcc or
+clang based toolchains.</p>
+<p>This plugin uses the common plugin keywords as well as those for &#8220;sources&#8221;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<p>Additionally, this plugin uses the following plugin-specific keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li>qbs-build-variant:
+(enum, &#8216;debug&#8217; or &#8216;release&#8217;)
+Set either debug or release build variant. Default is release.</li>
+<li>qbs-options:
+(list of strings)
+Additional options to pass to the qbs invocation.</li>
+<li>qbs-profile:
+(enum, &#8216;gcc&#8217; or &#8216;clang&#8217;)
+Set either gcc or clang as the base build profile. Default is gcc.</li>
+<li>qt-version:
+(enum, &#8216;qt4&#8217; or &#8216;qt5&#8217;)
+Optionally you can set up profiles for qt4 and qt5 applications.
+If no qt version is set then the base gcc/clang profile will be used.</li>
+</ul>
+</div></blockquote>
+<dl class="class">
+<dt id="snapcraft.plugins.qbs.QbsPlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.qbs.</code><code class="descname">QbsPlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/qbs.html#QbsPlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.qbs.QbsPlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">snapcraft._baseplugin.BasePlugin</span></code></p>
+<dl class="method">
+<dt id="snapcraft.plugins.qbs.QbsPlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/qbs.html#QbsPlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.qbs.QbsPlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.qbs.QbsPlugin.get_build_properties">
+<em class="property">classmethod </em><code class="descname">get_build_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/qbs.html#QbsPlugin.get_build_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.qbs.QbsPlugin.get_build_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.qbs.QbsPlugin.get_pull_properties">
+<em class="property">classmethod </em><code class="descname">get_pull_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/qbs.html#QbsPlugin.get_pull_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.qbs.QbsPlugin.get_pull_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.qbs.QbsPlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/qbs.html#QbsPlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.qbs.QbsPlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.qmake">
+<span id="snapcraft-plugins-qmake-module"></span><h2>snapcraft.plugins.qmake module<a class="headerlink" href="#module-snapcraft.plugins.qmake" title="Permalink to this headline">¶</a></h2>
+<p>The qmake plugin is useful for building qmake-based parts.</p>
+<p>These are projects that are built using .pro files.</p>
+<p>This plugin uses the common plugin keywords as well as those for &#8220;sources&#8221;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<p>Additionally, this plugin uses the following plugin-specific keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li>options:
+(list of strings)
+additional options to pass to the qmake invocation.</li>
+<li>qt-version:
+(enum, &#8216;qt4&#8217; or &#8216;qt5&#8217;)
+Version of Qt to use with qmake.</li>
+<li>project-files:
+(list of strings)
+list of .pro files to pass to the qmake invocation.</li>
+</ul>
+</div></blockquote>
+<dl class="class">
+<dt id="snapcraft.plugins.qmake.QmakePlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.qmake.</code><code class="descname">QmakePlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/qmake.html#QmakePlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.qmake.QmakePlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">snapcraft._baseplugin.BasePlugin</span></code></p>
+<dl class="method">
+<dt id="snapcraft.plugins.qmake.QmakePlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/qmake.html#QmakePlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.qmake.QmakePlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.qmake.QmakePlugin.get_build_properties">
+<em class="property">classmethod </em><code class="descname">get_build_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/qmake.html#QmakePlugin.get_build_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.qmake.QmakePlugin.get_build_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.qmake.QmakePlugin.get_pull_properties">
+<em class="property">classmethod </em><code class="descname">get_pull_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/qmake.html#QmakePlugin.get_pull_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.qmake.QmakePlugin.get_pull_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.qmake.QmakePlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/qmake.html#QmakePlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.qmake.QmakePlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.rust">
+<span id="snapcraft-plugins-rust-module"></span><h2>snapcraft.plugins.rust module<a class="headerlink" href="#module-snapcraft.plugins.rust" title="Permalink to this headline">¶</a></h2>
+<p>This rust plugin is useful for building rust based parts.</p>
+<p>Rust uses cargo to drive the build.</p>
+<p>This plugin uses the common plugin keywords as well as those for &#8220;sources&#8221;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<p>Additionally, this plugin uses the following plugin-specific keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li>rust-channel
+(string)
+select rust channel (stable, beta, nightly)</li>
+<li>rust-revision
+(string)
+select rust version</li>
+<li>rust-features
+(list of strings)
+Features used to build optional dependencies</li>
+</ul>
+</div></blockquote>
+<dl class="class">
+<dt id="snapcraft.plugins.rust.RustPlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.rust.</code><code class="descname">RustPlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/rust.html#RustPlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.rust.RustPlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">snapcraft._baseplugin.BasePlugin</span></code></p>
+<dl class="method">
+<dt id="snapcraft.plugins.rust.RustPlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/rust.html#RustPlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.rust.RustPlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.rust.RustPlugin.clean_pull">
+<code class="descname">clean_pull</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/rust.html#RustPlugin.clean_pull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.rust.RustPlugin.clean_pull" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.rust.RustPlugin.get_build_properties">
+<em class="property">classmethod </em><code class="descname">get_build_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/rust.html#RustPlugin.get_build_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.rust.RustPlugin.get_build_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.rust.RustPlugin.get_pull_properties">
+<em class="property">classmethod </em><code class="descname">get_pull_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/rust.html#RustPlugin.get_pull_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.rust.RustPlugin.get_pull_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.rust.RustPlugin.pull">
+<code class="descname">pull</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/rust.html#RustPlugin.pull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.rust.RustPlugin.pull" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.rust.RustPlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/rust.html#RustPlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.rust.RustPlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.scons">
+<span id="snapcraft-plugins-scons-module"></span><h2>snapcraft.plugins.scons module<a class="headerlink" href="#module-snapcraft.plugins.scons" title="Permalink to this headline">¶</a></h2>
+<p>The scons plugin is useful for building parts that build with scons.</p>
+<p>These are projects that have a SConstruct that drives the build.</p>
+<p>This plugin uses the common plugin keywords as well as those for &#8220;sources&#8221;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<p>Additionally, this plugin uses the following plugin-specific keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li>scons-options:
+(list of strings)
+flags to pass to the build using the scons semantics for parameters.</li>
+</ul>
+</div></blockquote>
+<dl class="class">
+<dt id="snapcraft.plugins.scons.SconsPlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.scons.</code><code class="descname">SconsPlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/scons.html#SconsPlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.scons.SconsPlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">snapcraft._baseplugin.BasePlugin</span></code></p>
+<dl class="method">
+<dt id="snapcraft.plugins.scons.SconsPlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/scons.html#SconsPlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.scons.SconsPlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.scons.SconsPlugin.get_build_properties">
+<em class="property">classmethod </em><code class="descname">get_build_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/scons.html#SconsPlugin.get_build_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.scons.SconsPlugin.get_build_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.scons.SconsPlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/scons.html#SconsPlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.scons.SconsPlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.tar_content">
+<span id="snapcraft-plugins-tar-content-module"></span><h2>snapcraft.plugins.tar_content module<a class="headerlink" href="#module-snapcraft.plugins.tar_content" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="snapcraft.plugins.tar_content.TarContentPlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.tar_content.</code><code class="descname">TarContentPlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/tar_content.html#TarContentPlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.tar_content.TarContentPlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">snapcraft._baseplugin.BasePlugin</span></code></p>
+<dl class="method">
+<dt id="snapcraft.plugins.tar_content.TarContentPlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/tar_content.html#TarContentPlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.tar_content.TarContentPlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="snapcraft.plugins.tar_content.TarContentPlugin.enable_cross_compilation">
+<code class="descname">enable_cross_compilation</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/tar_content.html#TarContentPlugin.enable_cross_compilation"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.tar_content.TarContentPlugin.enable_cross_compilation" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.tar_content.TarContentPlugin.get_build_properties">
+<em class="property">classmethod </em><code class="descname">get_build_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/tar_content.html#TarContentPlugin.get_build_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.tar_content.TarContentPlugin.get_build_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.tar_content.TarContentPlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/tar_content.html#TarContentPlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.tar_content.TarContentPlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins.waf">
+<span id="snapcraft-plugins-waf-module"></span><h2>snapcraft.plugins.waf module<a class="headerlink" href="#module-snapcraft.plugins.waf" title="Permalink to this headline">¶</a></h2>
+<p>The WAF plugin is useful to build waf based parts</p>
+<p>waf bases projects are projects that drive configuration and build via
+a local waf python helper - see <a class="reference external" href="https://github.com/waf-project/waf">https://github.com/waf-project/waf</a> for more
+details.</p>
+<p>This plugin uses the common plugin keywords as well as those for &#8220;sources&#8221;.
+For more information check the &#8216;plugins&#8217; topic for the former and the
+&#8216;sources&#8217; topic for the latter.</p>
+<p>In addition, this plugin uses the following plugin-specific keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li>configflags:
+(list of strings)
+configure flags to pass to the build such as those shown by running
+./waf &#8211;help</li>
+</ul>
+</div></blockquote>
+<dl class="class">
+<dt id="snapcraft.plugins.waf.WafPlugin">
+<em class="property">class </em><code class="descclassname">snapcraft.plugins.waf.</code><code class="descname">WafPlugin</code><span class="sig-paren">(</span><em>name</em>, <em>options</em>, <em>project</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/waf.html#WafPlugin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.waf.WafPlugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">snapcraft._baseplugin.BasePlugin</span></code></p>
+<p>plugin to build via waf build system</p>
+<dl class="method">
+<dt id="snapcraft.plugins.waf.WafPlugin.build">
+<code class="descname">build</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/waf.html#WafPlugin.build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.waf.WafPlugin.build" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.waf.WafPlugin.get_build_properties">
+<em class="property">classmethod </em><code class="descname">get_build_properties</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/waf.html#WafPlugin.get_build_properties"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.waf.WafPlugin.get_build_properties" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="snapcraft.plugins.waf.WafPlugin.schema">
+<em class="property">classmethod </em><code class="descname">schema</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/snapcraft/plugins/waf.html#WafPlugin.schema"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#snapcraft.plugins.waf.WafPlugin.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-snapcraft.plugins">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-snapcraft.plugins" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">snapcraft.plugins package</a><ul>
+<li><a class="reference internal" href="#submodules">Submodules</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.ant">snapcraft.plugins.ant module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.autotools">snapcraft.plugins.autotools module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.catkin">snapcraft.plugins.catkin module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.cmake">snapcraft.plugins.cmake module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.copy">snapcraft.plugins.copy module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.dump">snapcraft.plugins.dump module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.go">snapcraft.plugins.go module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.godeps">snapcraft.plugins.godeps module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.gradle">snapcraft.plugins.gradle module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.gulp">snapcraft.plugins.gulp module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.jdk">snapcraft.plugins.jdk module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.kbuild">snapcraft.plugins.kbuild module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.kernel">snapcraft.plugins.kernel module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.make">snapcraft.plugins.make module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.maven">snapcraft.plugins.maven module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.nil">snapcraft.plugins.nil module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.nodejs">snapcraft.plugins.nodejs module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.plainbox_provider">snapcraft.plugins.plainbox_provider module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.python">snapcraft.plugins.python module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.python2">snapcraft.plugins.python2 module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.python3">snapcraft.plugins.python3 module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.qbs">snapcraft.plugins.qbs module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.qmake">snapcraft.plugins.qmake module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.rust">snapcraft.plugins.rust module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.scons">snapcraft.plugins.scons module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.tar_content">snapcraft.plugins.tar_content module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins.waf">snapcraft.plugins.waf module</a></li>
+<li><a class="reference internal" href="#module-snapcraft.plugins">Module contents</a></li>
+</ul>
+</li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  <li><a href="modules.html">snapcraft</a><ul>
+  <li><a href="snapcraft.html">snapcraft package</a><ul>
+      <li>Previous: <a href="snapcraft.internal.states.html" title="previous chapter">snapcraft.internal.states package</a></li>
+      <li>Next: <a href="snapcraft.storeapi.html" title="next chapter">snapcraft.storeapi package</a></li>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/snapcraft.plugins.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+      |
+      <a href="_sources/snapcraft.plugins.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,508 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../index.html" />
+    <link rel="up" title="Module code" href="index.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft</h1><div class="highlight"><pre>
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2015 Canonical Ltd</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="sd">&quot;&quot;&quot;Snapcraft plugins drive different build systems</span>
+
+<span class="sd">Each part has a build system . Most parts are built from source using one of</span>
+<span class="sd">a range of build systems such as CMake or Scons. Some parts are pre-built</span>
+<span class="sd">and just copied into place, for example parts that reuse existing binary</span>
+<span class="sd">packages.</span>
+
+<span class="sd">You tell snapcraft which build system it must drive by specifying the</span>
+<span class="sd">snapcraft plugin for that part. Every part must specify a plugin explicitly</span>
+<span class="sd">(when you see a part that does not specify a plugin, thats because the</span>
+<span class="sd">actual part definition is in the cloud, where the plugin is specified!)</span>
+
+<span class="sd">These plugins implement a lifecycle over the following steps:</span>
+
+<span class="sd">  - pull:   retrieve the source for the part from the specified location</span>
+<span class="sd">  - build:  drive the build system determined by the choice of plugin</span>
+<span class="sd">  - stage:  consolidate desireable files from all the parts in one tree</span>
+<span class="sd">  - prime:  distill down to only the files which will go into the snap</span>
+<span class="sd">  - snap:   compress the prime tree into the installable snap file</span>
+
+<span class="sd">These steps correspond to snapcraft commands. So when you initiate a</span>
+<span class="sd">&#39;snapcraft pull&#39; you will invoke the respective plugin for each part in</span>
+<span class="sd">the snap, in sequence, to handle the source pull. Each part will then have a</span>
+<span class="sd">fully populated parts/&lt;part-name&gt;/src/ directory. Similarly, if you then say</span>
+<span class="sd">&#39;snapcraft build&#39; you will invoke the plugin responsible for each part in</span>
+<span class="sd">turn, to build the part.</span>
+
+<span class="sd"># Snapcraft Lifecycle</span>
+
+<span class="sd">## Pull</span>
+
+<span class="sd">In this first step, source material is retrieved from the specified</span>
+<span class="sd">location, whether that is a URL for a tarball, a local path to a source tree</span>
+<span class="sd">inside the snap, a revision control reference to checkout, or something</span>
+<span class="sd">specific to the plugin such as PyPI. The plugin might also download</span>
+<span class="sd">necessary artifacts, such as the Java SDK, which are not specific to the</span>
+<span class="sd">particular part but which are needed by the plugin to handle its type of</span>
+<span class="sd">build system.</span>
+
+<span class="sd">All the downloaded content for each part goes into the</span>
+<span class="sd">`parts/&lt;part-name&gt;/src/` directory, which acts as a cache to prevent</span>
+<span class="sd">re-fetching content. You can clean that cache out with &#39;snapcraft clean&#39;.</span>
+
+<span class="sd">## Build</span>
+
+<span class="sd">Snapcraft calculates an appropriate sequence to build the parts, based on</span>
+<span class="sd">explicit &#39;after&#39; references and the order of the parts in the</span>
+<span class="sd">snapcraft.yaml. Each part is built in the `parts/&lt;part-name&gt;/build`</span>
+<span class="sd">directory and installed into `parts/&lt;part-name&gt;/install`.</span>
+
+<span class="sd">Note the install step - we might actually want to use built artifacts from</span>
+<span class="sd">one part in the build process of another, so the `parts/&lt;part-name&gt;/install`</span>
+<span class="sd">directory is useful as a &#39;working fresh install&#39; of the part.</span>
+
+<span class="sd">Between the plugin, the part definition YAML, and the build system of the</span>
+<span class="sd">part, it is expected that the part can be built and installed in the right</span>
+<span class="sd">place.</span>
+
+<span class="sd">At this point you have a tree under `parts/` with a subdirectory for every</span>
+<span class="sd">part, and underneath those, separate src, build and install trees for each</span>
+<span class="sd">part.</span>
+
+<span class="sd">## Stage</span>
+
+<span class="sd">We now need to start consolidating the important pieces of each part into a</span>
+<span class="sd">single tree. We do this twice - once in a very sweeping way that will</span>
+<span class="sd">produce a lot of extraneous materials but is useful for debugging. This is</span>
+<span class="sd">the &#39;stage&#39; step of the lifecycle, because we move a lot of the build output</span>
+<span class="sd">from each part into a consolidated tree under `stage/` which has the</span>
+<span class="sd">structure of a snap but has way too much extra information.</span>
+
+<span class="sd">The important thing about the staging area is that it lets you get all the</span>
+<span class="sd">shared libraries in one place and lets you find overlapping content in the</span>
+<span class="sd">parts. You can also try this directory as if it were a snap, and you&#39;ll have</span>
+<span class="sd">all the debugging information in the tree, which is useful for developers.</span>
+
+<span class="sd">Each part describes its own staging content - the files that should be</span>
+<span class="sd">staged. The part will often describe &quot;chunks&quot; of content, called filesets,</span>
+<span class="sd">so that they can be referred to as a useful set rather than having to call</span>
+<span class="sd">out individual files.</span>
+
+<span class="sd">## Prime</span>
+
+<span class="sd">It is useful to have a directory tree which exactly mirrors the structure of</span>
+<span class="sd">the final snap. This is the `prime/` directory, and the lifecycle includes a</span>
+<span class="sd">&#39;prime&#39; step which copies only that final, required content from the</span>
+<span class="sd">`stage/` directory into the `prime/` directory.</span>
+
+<span class="sd">So the `prime/` directory contains only the content that will be put into</span>
+<span class="sd">the final snap, unlike the staging area which may include debug and</span>
+<span class="sd">development files not destined for your snap.</span>
+
+<span class="sd">The snap metadata will also be placed in `./prime/meta` during the prime</span>
+<span class="sd">step, so this `./prime` directory is useful for inspecting exactly what is</span>
+<span class="sd">going into your snap or to conduct any final post-processing on snapcraft&#39;s</span>
+<span class="sd">output.</span>
+
+<span class="sd">## Snap</span>
+
+<span class="sd">The final step in the snapcraft lifecycle builds a snap out of the `prime/`</span>
+<span class="sd">directory. It will be in the top level directory, alongside snapcraft.yaml,</span>
+<span class="sd">called &lt;name&gt;-&lt;version&gt;-&lt;arch&gt;.snap</span>
+
+
+<span class="sd"># Standard part definition keywords</span>
+
+<span class="sd">There are several builtin keywords which can be used in any part regardless</span>
+<span class="sd">of the choice of plugin.</span>
+
+<span class="sd">  - after: [part, part, part...]</span>
+
+<span class="sd">    Snapcraft will make sure that it builds all of the listed parts before</span>
+<span class="sd">    it tries to build this part. Essentially these listed dependencies for</span>
+<span class="sd">    this part, useful when the part needs a library or tool built by another</span>
+<span class="sd">    part.</span>
+
+<span class="sd">    If such a dependency part is not defined in this snapcraft.yaml, it must</span>
+<span class="sd">    be defined in the cloud parts library, and snapcraft will retrieve the</span>
+<span class="sd">    definition of the part from the cloud. In this way, a shared library of</span>
+<span class="sd">    parts is available to every snap author - just say &#39;after&#39; and list the</span>
+<span class="sd">    parts you want that others have already defined.</span>
+
+<span class="sd">  - build-packages: [deb, deb, deb...]</span>
+
+<span class="sd">    A list of Ubuntu packages to install on the build host before building</span>
+<span class="sd">    the part. The files from these packages typically will not go into the</span>
+<span class="sd">    final snap unless they contain libraries that are direct dependencies of</span>
+<span class="sd">    binaries within the snap (in which case they&#39;ll be discovered via `ldd`),</span>
+<span class="sd">    or they are explicitly described in stage-packages.</span>
+
+<span class="sd">  - stage-packages: YAML list</span>
+
+<span class="sd">    A set of Ubuntu packages to be downloaded and unpacked to join the part</span>
+<span class="sd">    before it&#39;s built. Note that these packages are not installed on the host.</span>
+<span class="sd">    Like the rest of the part, all files from these packages will make it into</span>
+<span class="sd">    the final snap unless filtered out via the `snap` keyword.</span>
+
+<span class="sd">    One may simply specify packages in a flat list, in which case the packages</span>
+<span class="sd">    will be fetched and unpacked regardless of build environment. In addition,</span>
+<span class="sd">    a specific grammar made up of sub-lists is supported here that allows one</span>
+<span class="sd">    to filter stage packages depending on various selectors (e.g. the target</span>
+<span class="sd">    arch), as well as specify optional packages. The grammar is made up of two</span>
+<span class="sd">    nestable statements: &#39;on&#39; and &#39;try&#39;.</span>
+
+<span class="sd">    Let&#39;s discuss `on`.</span>
+
+<span class="sd">        - on &lt;selector&gt;[,&lt;selector&gt;...]:</span>
+<span class="sd">          - ...</span>
+<span class="sd">        - else[ fail]:</span>
+<span class="sd">          - ...</span>
+
+<span class="sd">    The body of the &#39;on&#39; clause is taken into account if every (AND, not OR)</span>
+<span class="sd">    selector is true for the target build environment. Currently the only</span>
+<span class="sd">    selectors supported are target architectures (e.g. amd64).</span>
+
+<span class="sd">    If the &#39;on&#39; clause doesn&#39;t match and it&#39;s immediately followed by an &#39;else&#39;</span>
+<span class="sd">    clause, the &#39;else&#39; clause must be satisfied. An &#39;on&#39; clause without an</span>
+<span class="sd">    &#39;else&#39; clause is considered satisfied even if no selector matched. The</span>
+<span class="sd">    &#39;else fail&#39; form allows erroring out if an &#39;on&#39; clause was not matched.</span>
+
+<span class="sd">    For example, say you only wanted to stage `foo` if building for amd64 (and</span>
+<span class="sd">    not stage `foo` if otherwise):</span>
+
+<span class="sd">        - on amd64: [foo]</span>
+
+<span class="sd">    Building on that, say you wanted to stage `bar` if building on an arch</span>
+<span class="sd">    other than amd64:</span>
+
+<span class="sd">        - on amd64: [foo]</span>
+<span class="sd">        - else: [bar]</span>
+
+<span class="sd">    You can nest these for more complex behaviors:</span>
+
+<span class="sd">        - on amd64: [foo]</span>
+<span class="sd">        - else:</span>
+<span class="sd">          - on i386: [bar]</span>
+<span class="sd">          - on armhf: [baz]</span>
+
+<span class="sd">    If your project requires a package that is only available on amd64, you can</span>
+<span class="sd">    fail if you&#39;re not building for amd64:</span>
+
+<span class="sd">        - on amd64: [foo]</span>
+<span class="sd">        - else fail</span>
+
+<span class="sd">    Now let&#39;s discuss `try`:</span>
+
+<span class="sd">        - try:</span>
+<span class="sd">          - ...</span>
+<span class="sd">        - else:</span>
+<span class="sd">          - ...</span>
+
+<span class="sd">    The body of the &#39;try&#39; clause is taken into account only when all packages</span>
+<span class="sd">    contained within it are valid. If not, if it&#39;s immediately followed by</span>
+<span class="sd">    &#39;else&#39; clauses they are tried in order, and one of them must be satisfied.</span>
+<span class="sd">    A &#39;try&#39; clause with no &#39;else&#39; clause is considered satisfied even if it</span>
+<span class="sd">    contains invalid packages.</span>
+
+<span class="sd">    For example, say you wanted to stage `foo`, but it wasn&#39;t available for all</span>
+<span class="sd">    architectures. Assuming your project builds without it, you can make it an</span>
+<span class="sd">    optional stage package:</span>
+
+<span class="sd">        - try: [foo]</span>
+
+<span class="sd">    You can also add alternatives:</span>
+
+<span class="sd">        - try: [foo]</span>
+<span class="sd">        - else: [bar]</span>
+
+<span class="sd">    Again, you can nest these for more complex behaviors:</span>
+
+<span class="sd">        - on amd64: [foo]</span>
+<span class="sd">        - else:</span>
+<span class="sd">          - try: [bar]</span>
+
+<span class="sd">  - organize: YAML</span>
+
+<span class="sd">    Snapcraft will rename files according to this YAML sub-section. The</span>
+<span class="sd">    content of the &#39;organize&#39; section consists of old path keys, and their</span>
+<span class="sd">    new values after the renaming.</span>
+
+<span class="sd">    This can be used to avoid conflicts between parts that use the same</span>
+<span class="sd">    name, or to map content from different parts into a common conventional</span>
+<span class="sd">    file structure. For example:</span>
+
+<span class="sd">      organize:</span>
+<span class="sd">        usr/oldfilename: usr/newfilename</span>
+<span class="sd">        usr/local/share/: usr/share/</span>
+
+<span class="sd">    The key is the internal part filename, the value is the exposed filename</span>
+<span class="sd">    that will be used during the staging process. You can rename whole</span>
+<span class="sd">    subtrees of the part, or just specific files.</span>
+
+<span class="sd">    Note that the path is relative (even though it is &quot;usr/local&quot;) because</span>
+<span class="sd">    it refers to content underneath parts/&lt;part-name&gt;/install which is going</span>
+<span class="sd">    to be mapped into the stage and prime areas.</span>
+
+<span class="sd">  - filesets: YAML</span>
+
+<span class="sd">    When we map files into the stage and prime areas on the way to putting</span>
+<span class="sd">    them into the snap, it is convenient to be able to refer to groups of</span>
+<span class="sd">    files as well as individual files.  Snapcraft lets you name a fileset</span>
+<span class="sd">    and then use it later for inclusion or exclusion of those files from the</span>
+<span class="sd">    resulting snap.</span>
+
+<span class="sd">    For example, consider man pages of header files.. You might want them</span>
+<span class="sd">    in, or you might want to leave them out, but you definitely don&#39;t want</span>
+<span class="sd">    to repeatedly have to list all of them either way.</span>
+
+<span class="sd">    This section is thus a YAML map of fileset names (the keys) to a list of</span>
+<span class="sd">    filenames. The list is built up by adding individual files or whole</span>
+<span class="sd">    subdirectory paths (and all the files under that path) and wildcard</span>
+<span class="sd">    globs, and then pruning from those paths.</span>
+
+<span class="sd">    The wildcard * globs all files in that path. Exclusions are denoted by</span>
+<span class="sd">    an initial `-`.</span>
+
+<span class="sd">    For example you could add usr/local/* then remove usr/local/man/*:</span>
+
+<span class="sd">      filesets:</span>
+<span class="sd">        allbutman: [ usr/local/*, -usr/local/man/* ]</span>
+<span class="sd">        manpages: [ usr/local/man ]</span>
+
+<span class="sd">    Filenames are relative to the part install directory in</span>
+<span class="sd">    `parts/&lt;part-name&gt;/install`. If you have used &#39;organize&#39; to rename files</span>
+<span class="sd">    then the filesets will be built up from the names after organization.</span>
+
+<span class="sd">  - stage: YAML file and fileset list</span>
+
+<span class="sd">    A list of files from a part install directory to copy into `stage/`.</span>
+<span class="sd">    Rules applying to the list here are the same as those of filesets.</span>
+<span class="sd">    Referencing of fileset keys is done with a $ prefixing the fileset key,</span>
+<span class="sd">    which will expand with the value of such key.</span>
+
+<span class="sd">    For example:</span>
+
+<span class="sd">      stage:</span>
+<span class="sd">        - usr/lib/*   # Everything under parts/&lt;part-name&gt;/install/usr/lib</span>
+<span class="sd">        - -usr/lib/libtest.so   # Excludng libtest.so</span>
+<span class="sd">        - $manpages             # Including the &#39;manpages&#39; fileset</span>
+
+<span class="sd">  - snap: YAML file and fileset list</span>
+
+<span class="sd">    A list of files from a part install directory to copy into `prime/`.</span>
+<span class="sd">    This section takes exactly the same form as the &#39;stage&#39; section  but the</span>
+<span class="sd">    files identified here will go into the ultimate snap (because the</span>
+<span class="sd">    `prime/` directory reflects the file structure of the snap with no</span>
+<span class="sd">    extraneous content).</span>
+
+<span class="sd">  - prepare: shell script</span>
+
+<span class="sd">    If present, the shell script defined here is run before the `build` step</span>
+<span class="sd">    of the plugin starts. The working directory is the base build</span>
+<span class="sd">    directory for the given part. The defined script is run with `/bin/sh`.</span>
+
+<span class="sd">    For example:</span>
+
+<span class="sd">      prepare: |</span>
+<span class="sd">        cd scripts</span>
+<span class="sd">        ./bootstrap.sh</span>
+
+<span class="sd">  - build: shell script</span>
+
+<span class="sd">    If present, the shell script defined here is run instead of the `build`</span>
+<span class="sd">    step of the plugin. The working directory is the base build directory</span>
+<span class="sd">    for the given part. The defined script is run with `/bin/sh`.</span>
+
+<span class="sd">    For example:</span>
+
+<span class="sd">      plugin: make</span>
+<span class="sd">      build: |</span>
+<span class="sd">        make project</span>
+<span class="sd">        make test</span>
+<span class="sd">        make special-install</span>
+
+<span class="sd">  - install: shell script</span>
+
+<span class="sd">    If present, the shell script defined here is run after the `build` step</span>
+<span class="sd">    of the plugin has finished. The working directory is the base build</span>
+<span class="sd">    directory for the given part. The defined script is run with `/bin/sh`.</span>
+
+<span class="sd">    For example:</span>
+
+<span class="sd">      install: |</span>
+<span class="sd">        sed -i &#39;s|/usr/bin|$SNAP/usr/bin|g&#39; my-bin-artifact.sh</span>
+<span class="sd">        mv my-bin-artifact.sh $SNAPCRAFT_PART_INSTALL/bin/my-bin-build.sh</span>
+
+<span class="sd">  - build-attributes: [attribute1, attribute2]</span>
+
+<span class="sd">    A list of special attributes that affect the build of this specific part.</span>
+<span class="sd">    Supported attributes:</span>
+
+<span class="sd">      - no-system-libraries:</span>
+<span class="sd">        Do not automatically copy required libraries from the system to satisfy</span>
+<span class="sd">        the dependencies of this part. This might be useful if one knows these</span>
+<span class="sd">        dependencies will be satisfied in other manner, e.g. via content</span>
+<span class="sd">        sharing from other snaps.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">OrderedDict</span>                 <span class="c1"># noqa</span>
+<span class="kn">import</span> <span class="nn">pkg_resources</span>                                <span class="c1"># noqa</span>
+<span class="kn">import</span> <span class="nn">yaml</span>                                         <span class="c1"># noqa</span>
+
+<span class="kn">from</span> <span class="nn">snapcraft._baseplugin</span> <span class="kn">import</span> <span class="n">BasePlugin</span>        <span class="c1"># noqa</span>
+<span class="kn">from</span> <span class="nn">snapcraft._options</span> <span class="kn">import</span> <span class="n">ProjectOptions</span>       <span class="c1"># noqa</span>
+<span class="kn">from</span> <span class="nn">snapcraft._help</span> <span class="kn">import</span> <span class="n">topic_help</span>              <span class="c1"># noqa</span>
+<span class="c1"># FIXME LP: #1662658</span>
+<span class="kn">from</span> <span class="nn">snapcraft._store</span> <span class="kn">import</span> <span class="p">(</span>                      <span class="c1"># noqa</span>
+    <span class="n">create_key</span><span class="p">,</span>
+    <span class="n">close</span><span class="p">,</span>
+    <span class="n">download</span><span class="p">,</span>
+    <span class="n">history</span><span class="p">,</span>
+    <span class="n">gated</span><span class="p">,</span>
+    <span class="n">list_keys</span><span class="p">,</span>
+    <span class="n">list_registered</span><span class="p">,</span>
+    <span class="n">login</span><span class="p">,</span>
+    <span class="n">logout</span><span class="p">,</span>
+    <span class="n">push</span><span class="p">,</span>
+    <span class="n">register</span><span class="p">,</span>
+    <span class="n">register_key</span><span class="p">,</span>
+    <span class="n">release</span><span class="p">,</span>
+    <span class="n">sign_build</span><span class="p">,</span>
+    <span class="n">status</span><span class="p">,</span>
+    <span class="n">validate</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">snapcraft</span> <span class="kn">import</span> <span class="n">common</span>                        <span class="c1"># noqa</span>
+<span class="kn">from</span> <span class="nn">snapcraft</span> <span class="kn">import</span> <span class="n">plugins</span>                       <span class="c1"># noqa</span>
+<span class="kn">from</span> <span class="nn">snapcraft</span> <span class="kn">import</span> <span class="n">sources</span>                       <span class="c1"># noqa</span>
+<span class="kn">from</span> <span class="nn">snapcraft</span> <span class="kn">import</span> <span class="n">file_utils</span>                    <span class="c1"># noqa</span>
+<span class="kn">from</span> <span class="nn">snapcraft</span> <span class="kn">import</span> <span class="n">shell_utils</span>                   <span class="c1"># noqa</span>
+<span class="kn">from</span> <span class="nn">snapcraft.internal</span> <span class="kn">import</span> <span class="n">repo</span>                 <span class="c1"># noqa</span>
+
+
+<span class="k">def</span> <span class="nf">_get_version</span><span class="p">():</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">pkg_resources</span><span class="o">.</span><span class="n">require</span><span class="p">(</span><span class="s1">&#39;snapcraft&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">version</span>
+    <span class="k">except</span> <span class="n">pkg_resources</span><span class="o">.</span><span class="n">DistributionNotFound</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s1">&#39;devel&#39;</span>
+
+
+<span class="n">__version__</span> <span class="o">=</span> <span class="n">_get_version</span><span class="p">()</span>
+
+
+<span class="c1"># Setup yaml module globally</span>
+<span class="c1"># yaml OrderedDict loading and dumping</span>
+<span class="c1"># from http://stackoverflow.com/a/21048064 Wed Jun 22 16:05:34 UTC 2016</span>
+<span class="n">_mapping_tag</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">resolver</span><span class="o">.</span><span class="n">BaseResolver</span><span class="o">.</span><span class="n">DEFAULT_MAPPING_TAG</span>
+
+
+<div class="viewcode-block" id="dict_representer"><a class="viewcode-back" href="../snapcraft.html#snapcraft.dict_representer">[docs]</a><span class="k">def</span> <span class="nf">dict_representer</span><span class="p">(</span><span class="n">dumper</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">dumper</span><span class="o">.</span><span class="n">represent_dict</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">())</span></div>
+
+
+<div class="viewcode-block" id="dict_constructor"><a class="viewcode-back" href="../snapcraft.html#snapcraft.dict_constructor">[docs]</a><span class="k">def</span> <span class="nf">dict_constructor</span><span class="p">(</span><span class="n">loader</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">(</span><span class="n">loader</span><span class="o">.</span><span class="n">construct_pairs</span><span class="p">(</span><span class="n">node</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="str_presenter"><a class="viewcode-back" href="../snapcraft.html#snapcraft.str_presenter">[docs]</a><span class="k">def</span> <span class="nf">str_presenter</span><span class="p">(</span><span class="n">dumper</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">splitlines</span><span class="p">())</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>  <span class="c1"># check for multiline string</span>
+        <span class="k">return</span> <span class="n">dumper</span><span class="o">.</span><span class="n">represent_scalar</span><span class="p">(</span><span class="s1">&#39;tag:yaml.org,2002:str&#39;</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span>
+                                       <span class="n">style</span><span class="o">=</span><span class="s1">&#39;|&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">dumper</span><span class="o">.</span><span class="n">represent_scalar</span><span class="p">(</span><span class="s1">&#39;tag:yaml.org,2002:str&#39;</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span></div>
+
+
+<span class="n">yaml</span><span class="o">.</span><span class="n">add_representer</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">str_presenter</span><span class="p">)</span>
+<span class="n">yaml</span><span class="o">.</span><span class="n">add_representer</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">,</span> <span class="n">dict_representer</span><span class="p">)</span>
+<span class="n">yaml</span><span class="o">.</span><span class="n">add_constructor</span><span class="p">(</span><span class="n">_mapping_tag</span><span class="p">,</span> <span class="n">dict_constructor</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

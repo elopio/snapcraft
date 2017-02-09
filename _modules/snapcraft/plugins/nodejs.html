@@ -1,0 +1,241 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>snapcraft.plugins.nodejs &mdash; snapcraft 2.26 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '2.26',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="snapcraft 2.26 documentation" href="../../../index.html" />
+    <link rel="up" title="snapcraft" href="../../snapcraft.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for snapcraft.plugins.nodejs</h1><div class="highlight"><pre>
+<span class="c1"># -*- Mode:Python; indent-tabs-mode:nil; tab-width:4 -*-</span>
+<span class="c1">#</span>
+<span class="c1"># Copyright (C) 2015-2016 Canonical Ltd</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software: you can redistribute it and/or modify</span>
+<span class="c1"># it under the terms of the GNU General Public License version 3 as</span>
+<span class="c1"># published by the Free Software Foundation.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+<span class="sd">&quot;&quot;&quot;The nodejs plugin is useful for node/npm based parts.</span>
+
+<span class="sd">The plugin uses node to install dependencies from `package.json`. It</span>
+<span class="sd">also sets up binaries defined in `package.json` into the `PATH`.</span>
+
+<span class="sd">This plugin uses the common plugin keywords as well as those for &quot;sources&quot;.</span>
+<span class="sd">For more information check the &#39;plugins&#39; topic for the former and the</span>
+<span class="sd">&#39;sources&#39; topic for the latter.</span>
+
+<span class="sd">Additionally, this plugin uses the following plugin-specific keywords:</span>
+
+<span class="sd">    - node-packages:</span>
+<span class="sd">      (list)</span>
+<span class="sd">      A list of dependencies to fetch using npm.</span>
+<span class="sd">    - node-engine:</span>
+<span class="sd">      (string)</span>
+<span class="sd">      The version of nodejs you want the snap to run on.</span>
+<span class="sd">    - npm-run:</span>
+<span class="sd">      (list)</span>
+<span class="sd">      A list of targets to `npm run`.</span>
+<span class="sd">      These targets will be run in order, after `npm install`</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">shutil</span>
+
+<span class="kn">import</span> <span class="nn">snapcraft</span>
+<span class="kn">from</span> <span class="nn">snapcraft</span> <span class="kn">import</span> <span class="n">sources</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+<span class="n">_NODEJS_BASE</span> <span class="o">=</span> <span class="s1">&#39;node-v{version}-linux-{arch}&#39;</span>
+<span class="n">_NODEJS_VERSION</span> <span class="o">=</span> <span class="s1">&#39;4.4.4&#39;</span>
+<span class="n">_NODEJS_TMPL</span> <span class="o">=</span> <span class="s1">&#39;https://nodejs.org/dist/v{version}/{base}.tar.gz&#39;</span>
+<span class="n">_NODEJS_ARCHES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;i386&#39;</span><span class="p">:</span> <span class="s1">&#39;x86&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;amd64&#39;</span><span class="p">:</span> <span class="s1">&#39;x64&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;armhf&#39;</span><span class="p">:</span> <span class="s1">&#39;armv7l&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;arm64&#39;</span><span class="p">:</span> <span class="s1">&#39;arm64&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="NodePlugin"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.nodejs.NodePlugin">[docs]</a><span class="k">class</span> <span class="nc">NodePlugin</span><span class="p">(</span><span class="n">snapcraft</span><span class="o">.</span><span class="n">BasePlugin</span><span class="p">):</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="NodePlugin.schema"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.nodejs.NodePlugin.schema">[docs]</a>    <span class="k">def</span> <span class="nf">schema</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">schema</span><span class="p">()</span>
+
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;node-packages&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;array&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;minitems&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s1">&#39;uniqueItems&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+            <span class="s1">&#39;items&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span>
+            <span class="p">},</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">[]</span>
+        <span class="p">}</span>
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;node-engine&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="n">_NODEJS_VERSION</span>
+        <span class="p">}</span>
+        <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;npm-run&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;array&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;minitems&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s1">&#39;uniqueItems&#39;</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+            <span class="s1">&#39;items&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span>
+            <span class="p">},</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">[]</span>
+        <span class="p">}</span>
+
+        <span class="k">if</span> <span class="s1">&#39;required&#39;</span> <span class="ow">in</span> <span class="n">schema</span><span class="p">:</span>
+            <span class="k">del</span> <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;required&#39;</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">schema</span></div>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="NodePlugin.get_build_properties"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.nodejs.NodePlugin.get_build_properties">[docs]</a>    <span class="k">def</span> <span class="nf">get_build_properties</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="c1"># Inform Snapcraft of the properties associated with building. If these</span>
+        <span class="c1"># change in the YAML Snapcraft will consider the build step dirty.</span>
+        <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;node-packages&#39;</span><span class="p">,</span> <span class="s1">&#39;npm-run&#39;</span><span class="p">]</span></div>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="NodePlugin.get_pull_properties"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.nodejs.NodePlugin.get_pull_properties">[docs]</a>    <span class="k">def</span> <span class="nf">get_pull_properties</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="c1"># Inform Snapcraft of the properties associated with pulling. If these</span>
+        <span class="c1"># change in the YAML Snapcraft will consider the build step dirty.</span>
+        <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;node-engine&#39;</span><span class="p">]</span></div>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">options</span><span class="p">,</span> <span class="n">project</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">options</span><span class="p">,</span> <span class="n">project</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_npm_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">partdir</span><span class="p">,</span> <span class="s1">&#39;npm&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_nodejs_tar</span> <span class="o">=</span> <span class="n">sources</span><span class="o">.</span><span class="n">Tar</span><span class="p">(</span><span class="n">get_nodejs_release</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">node_engine</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="o">.</span><span class="n">deb_arch</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_npm_dir</span><span class="p">)</span>
+
+<div class="viewcode-block" id="NodePlugin.pull"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.nodejs.NodePlugin.pull">[docs]</a>    <span class="k">def</span> <span class="nf">pull</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">pull</span><span class="p">()</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_npm_dir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_nodejs_tar</span><span class="o">.</span><span class="n">download</span><span class="p">()</span>
+        <span class="c1"># do the install in the pull phase to download all dependencies.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_npm_install</span><span class="p">(</span><span class="n">rootdir</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">sourcedir</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="NodePlugin.clean_pull"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.nodejs.NodePlugin.clean_pull">[docs]</a>    <span class="k">def</span> <span class="nf">clean_pull</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">clean_pull</span><span class="p">()</span>
+
+        <span class="c1"># Remove the npm directory (if any)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_npm_dir</span><span class="p">):</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_npm_dir</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="NodePlugin.build"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.nodejs.NodePlugin.build">[docs]</a>    <span class="k">def</span> <span class="nf">build</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">build</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_npm_install</span><span class="p">(</span><span class="n">rootdir</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">builddir</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_npm_install</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rootdir</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_nodejs_tar</span><span class="o">.</span><span class="n">provision</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">installdir</span><span class="p">,</span> <span class="n">clean_target</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">keep_tarball</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="n">npm_install</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;npm&#39;</span><span class="p">,</span> <span class="s1">&#39;--cache-min=Infinity&#39;</span><span class="p">,</span> <span class="s1">&#39;install&#39;</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">pkg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">node_packages</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">npm_install</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;--global&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">pkg</span><span class="p">],</span> <span class="n">cwd</span><span class="o">=</span><span class="n">rootdir</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">rootdir</span><span class="p">,</span> <span class="s1">&#39;package.json&#39;</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">npm_install</span><span class="p">,</span> <span class="n">cwd</span><span class="o">=</span><span class="n">rootdir</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">npm_install</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;--global&#39;</span><span class="p">],</span> <span class="n">cwd</span><span class="o">=</span><span class="n">rootdir</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">target</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">npm_run</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s1">&#39;npm&#39;</span><span class="p">,</span> <span class="s1">&#39;run&#39;</span><span class="p">,</span> <span class="n">target</span><span class="p">],</span> <span class="n">cwd</span><span class="o">=</span><span class="n">rootdir</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">_get_nodejs_base</span><span class="p">(</span><span class="n">node_engine</span><span class="p">,</span> <span class="n">machine</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">machine</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_NODEJS_ARCHES</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">EnvironmentError</span><span class="p">(</span><span class="s1">&#39;architecture not supported ({})&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">machine</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">_NODEJS_BASE</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">version</span><span class="o">=</span><span class="n">node_engine</span><span class="p">,</span>
+                               <span class="n">arch</span><span class="o">=</span><span class="n">_NODEJS_ARCHES</span><span class="p">[</span><span class="n">machine</span><span class="p">])</span>
+
+
+<div class="viewcode-block" id="get_nodejs_release"><a class="viewcode-back" href="../../../snapcraft.plugins.html#snapcraft.plugins.nodejs.get_nodejs_release">[docs]</a><span class="k">def</span> <span class="nf">get_nodejs_release</span><span class="p">(</span><span class="n">node_engine</span><span class="p">,</span> <span class="n">arch</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">_NODEJS_TMPL</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">version</span><span class="o">=</span><span class="n">node_engine</span><span class="p">,</span>
+                               <span class="n">base</span><span class="o">=</span><span class="n">_get_nodejs_base</span><span class="p">(</span><span class="n">node_engine</span><span class="p">,</span> <span class="n">arch</span><span class="p">))</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  <li><a href="../../snapcraft.html">snapcraft</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Canonical.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
