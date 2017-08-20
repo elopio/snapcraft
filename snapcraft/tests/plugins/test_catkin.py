@@ -47,10 +47,10 @@ class _CompareContainers():
         self.expected = expected
 
     def __eq__(self, container):
-        self.test.assertEqual(len(container), len(self.expected),
-                              'Expected {} items to be in container, '
-                              'got {}'.format(len(self.expected),
-                                              len(container)))
+        self.test.assertThat(len(container), Equals(len(self.expected)),
+                             'Expected {} items to be in container, '
+                             'got {}'.format(len(self.expected),
+                                             len(container)))
 
         for expectation in self.expected:
             self.test.assertTrue(expectation in container,
@@ -281,10 +281,11 @@ class CatkinPluginTestCase(CatkinPluginBaseTestCase):
             'test-part', self.properties,
             self.project_options)
 
-        self.assertEqual(str(raised),
-                         "Unsupported rosdistro: 'invalid'. The supported ROS "
-                         "distributions are 'indigo', 'jade', 'kinetic', and "
-                         "'lunar'")
+        self.assertThat(
+            str(raised),
+            Equals("Unsupported rosdistro: 'invalid'. The supported ROS "
+                   "distributions are 'indigo', 'jade', 'kinetic', and "
+                   "'lunar'"))
 
     def test_get_stage_sources_indigo(self):
         self.properties.rosdistro = 'indigo'
@@ -325,9 +326,9 @@ class CatkinPluginTestCase(CatkinPluginBaseTestCase):
             RuntimeError,
             plugin.pull)
 
-        self.assertEqual(str(raised),
-                         'Failed to fetch system dependencies: The '
-                         "package 'foo' was not found.")
+        self.assertThat(str(raised),
+                        Equals('Failed to fetch system dependencies: The '
+                               "package 'foo' was not found."))
 
     def test_pull_unable_to_resolve_roscore(self):
         self.properties.include_roscore = True
@@ -342,8 +343,9 @@ class CatkinPluginTestCase(CatkinPluginBaseTestCase):
 
         raised = self.assertRaises(RuntimeError, plugin.pull)
 
-        self.assertEqual(str(raised),
-                         'Unable to determine system dependency for roscore')
+        self.assertThat(
+            str(raised),
+            Equals('Unable to determine system dependency for roscore'))
 
     @mock.patch.object(catkin.CatkinPlugin, '_generate_snapcraft_setup_sh')
     def test_pull_invalid_underlay(self, generate_setup_mock):
@@ -396,10 +398,10 @@ class CatkinPluginTestCase(CatkinPluginBaseTestCase):
                                      self.project_options)
         raised = self.assertRaises(FileNotFoundError, plugin.pull)
 
-        self.assertEqual(
+        self.assertThat(
             str(raised),
-            'Unable to find package path: "{}"'.format(os.path.join(
-                plugin.sourcedir, 'src')))
+            Equals('Unable to find package path: "{}"'.format(os.path.join(
+                plugin.sourcedir, 'src'))))
 
     def test_valid_catkin_workspace_source_space(self):
         self.properties.source_space = 'foo'
@@ -424,10 +426,10 @@ class CatkinPluginTestCase(CatkinPluginBaseTestCase):
                                      self.project_options)
         raised = self.assertRaises(FileNotFoundError, plugin.pull)
 
-        self.assertEqual(
+        self.assertThat(
             str(raised),
-            'Unable to find package path: "{}"'.format(os.path.join(
-                plugin.sourcedir, self.properties.source_space)))
+            Equals('Unable to find package path: "{}"'.format(os.path.join(
+                plugin.sourcedir, self.properties.source_space))))
 
     def test_invalid_catkin_workspace_source_space_same_as_source(self):
         self.properties.source_space = '.'
@@ -441,9 +443,9 @@ class CatkinPluginTestCase(CatkinPluginBaseTestCase):
             'test-part', self.properties,
             self.project_options)
 
-        self.assertEqual(str(raised),
-                         'source-space cannot be the root of the Catkin '
-                         'workspace')
+        self.assertThat(
+            str(raised),
+            Equals('source-space cannot be the root of the Catkin workspace'))
 
     @mock.patch('snapcraft.plugins.catkin._Compilers')
     @mock.patch.object(catkin.CatkinPlugin, 'run')
@@ -569,7 +571,7 @@ class CatkinPluginTestCase(CatkinPluginBaseTestCase):
 
         # Verify that the absolute path in 10.ros.sh was rewritten correctly
         with open(ros_profile, 'r') as f:
-            self.assertEqual(f.read(), 'python foo',
+            self.assertThat(f.read(), Equals('python foo'),
                              'The absolute path to python was not replaced as '
                              'expected')
 
@@ -1310,9 +1312,11 @@ class CompilersTestCase(tests.TestCase):
         self.compilers.setup()
 
         # Verify that both gcc and g++ were installed (no other .debs)
-        self.assertEqual(self.ubuntu_mock.call_count, 1)
-        self.assertEqual(self.ubuntu_mock.return_value.get.call_count, 1)
-        self.assertEqual(self.ubuntu_mock.return_value.unpack.call_count, 1)
+        self.assertThat(self.ubuntu_mock.call_count, Equals(1))
+        self.assertThat(
+            self.ubuntu_mock.return_value.get.call_count, Equals(1))
+        self.assertThat(
+            self.ubuntu_mock.return_value.unpack.call_count, Equals(1))
         self.ubuntu_mock.assert_has_calls([
             mock.call(self.compilers._compilers_path, sources='sources',
                       project_options=self.project),
@@ -1480,9 +1484,11 @@ class WstoolTestCase(tests.TestCase):
         self.wstool.setup()
 
         # Verify that only wstool was installed (no other .debs)
-        self.assertEqual(self.ubuntu_mock.call_count, 1)
-        self.assertEqual(self.ubuntu_mock.return_value.get.call_count, 1)
-        self.assertEqual(self.ubuntu_mock.return_value.unpack.call_count, 1)
+        self.assertThat(self.ubuntu_mock.call_count, Equals(1))
+        self.assertThat(
+            self.ubuntu_mock.return_value.get.call_count, Equals(1))
+        self.assertThat(
+            self.ubuntu_mock.return_value.unpack.call_count, Equals(1))
         self.ubuntu_mock.assert_has_calls([
             mock.call(self.wstool._wstool_path, sources='sources',
                       project_options=self.project),

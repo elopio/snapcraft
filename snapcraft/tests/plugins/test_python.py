@@ -20,7 +20,7 @@ from glob import glob
 from unittest import mock
 
 import fixtures
-from testtools.matchers import FileContains, HasLength
+from testtools.matchers import Equals, FileContains, HasLength
 
 import snapcraft
 from snapcraft import tests
@@ -363,7 +363,7 @@ class PythonPluginTestCase(tests.TestCase):
         for file_info in files:
             with open(os.path.join(plugin.installdir,
                                    file_info['path']), 'r') as f:
-                self.assertEqual(f.read(), file_info['expected'])
+                self.assertThat(f.read(), Equals(file_info['expected']))
 
     @mock.patch.object(python.PythonPlugin, 'run')
     def test_process_dependency_links(self, run_mock):
