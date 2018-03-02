@@ -18,7 +18,7 @@
 # Arguments:
 #   name: The name of the container.
 
-set -ev
+set -ex
 
 if [ "$#" -lt 1 ]; then
     echo "Usage: "$0" <name>"

@@ -15,6 +15,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # Run snapcraft tests.
+# This assumes that lxd is properly configured, see the setup lxd job in
+# Jenkins.
 # Arguments:
 #   suite: The test suite to run.
 
@@ -45,13 +47,19 @@ else
     exit 1
 fi
 
+
+function delete_container {
+  lxc delete --force test-runner
+}
+
+
 script_path="$(dirname "$0")"
 project_path="$(readlink -f "$script_path/../..")"
 
 lxc="/snap/bin/lxc"
 
-"$script_path/setup_lxd.sh"
-"$script_path/run_lxd_container.sh" test-runner
+trap delete_container EXIT
+"$script_path/../travis/run_lxd_container.sh" test-runner
 
 $lxc file push --recursive $project_path test-runner/root/
 $lxc exec test-runner -- sh -c "cd snapcraft && ./tools/travis/setup_lxd.sh"
