@@ -1,0 +1,62 @@
+def externalProjects = [
+    ["https://github.com/nextcloud/nextcloud-snap", "master", true, ""],
+    ["https://github.com/nextcloud/nextcloud-snap", "develop", true, ""],
+    ["https://git.launchpad.net/checkbox-snappy", "master", true, ""],
+    ["https://github.com/maas/meta-maas", "master", true, ""],
+    ["https://github.com/docker-snap/docker", "master", true, ""],
+    ["https://github.com/magne4000/quassel-webserver", "master", true, ""],
+    ["https://github.com/conjure-up/conjure-up", "master", true, "--classic"],
+    ["https://github.com/getnikola/nikola/", "master", true, ""],
+    ["https://github.com/kyrofa/darktable-snap", "master", true, ""],
+    ["https://github.com/kyrofa/ros-lunar-snap", "master", true, ""],
+    ["https://github.com/lxc/lxd-pkg-ubuntu", "snappy-16", true, ""],
+    ["https://github.com/mysql/mysql-snap", "5.7", true, ""],
+    ["https://github.com/mysql/mysql-snap", "8.0", true, ""],
+    ["https://github.com/heroku/cli", "master", true, ""],
+    ["https://github.com/anbox/anbox/", "master", true, ""],
+    ["https://github.com/anbox/anbox/", "master", true, "--devmode"],
+    ["https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux-snap/+git/xenial", "pc", false, ""],
+    ["https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux-snap/+git/xenial", "raspi2", false, ""],
+    ["https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux-snap/+git/xenial", "snapdragon", false, ""],
+    ["https://git.launchpad.net/~snappy-hwe-team/snappy-hwe-snaps/+git/network-manager", "master", true, ""],
+    ["https://git.launchpad.net/~snappy-hwe-team/snappy-hwe-snaps/+git/modem-manager", "master", true, ""],
+    ["https://git.launchpad.net/~snappy-hwe-team/snappy-hwe-snaps/+git/bluez", "master", true, ""],
+    ["https://git.launchpad.net/~snappy-hwe-team/snappy-hwe-snaps/+git/alsa-utils", "master", true, ""],
+    ["https://git.launchpad.net/~snappy-hwe-team/snappy-hwe-snaps/+git/wifi-ap", "master", true, ""],
+    ["https://git.launchpad.net/~snappy-hwe-team/snappy-hwe-snaps/+git/upower", "master", true, ""],
+    ["https://git.launchpad.net/~snappy-hwe-team/snappy-hwe-snaps/+git/tpm", "master", true, ""],
+    ["https://git.launchpad.net/~snappy-hwe-team/snappy-hwe-snaps/+git/tpm2", "master", true, ""],
+    ["https://git.launchpad.net/~snappy-hwe-team/snappy-hwe-snaps/+git/pulseaudio", "master", true, ""]
+]
+
+def stepsForParallel = externalProjects.collectEntries {
+    ["testing ${it}" : transformIntoStep(it[0], it[1], it[2], it[3])]
+}
+
+parallel stepsForParallel
+
+def transformIntoStep(repo, branch, install, installFlags) {
+    return {
+        node {
+            sh "git clone --progress ${repo} repo"
+            sh "cd repo"
+            sh "git checkout ${branch}"
+            try {
+                sh "sudo snap install snapcraft --classic --edge"
+                sh "echo Building with snapcraft \$(snapcraft --version) ..."
+                sh "sudo snapcraft cleanbuild"
+                sh "sudo snap install *.snap --dangerous ${installFlags}"
+            }
+            catch(Exception e) {
+                sh "sudo snap refresh snapcraft --stable"
+                sh "echo Building with snapcraft \$(snapcraft --version) ..."
+                sh "sudo snapcraft cleanbuild"
+                throw e
+            }
+            finally {
+                sh "rm -rf repo"
+                sh "sudo snap remove snapcraft"
+            }
+        }
+    }
+}
