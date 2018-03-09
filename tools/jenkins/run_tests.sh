@@ -61,9 +61,9 @@ lxc="/snap/bin/lxc"
 trap delete_container EXIT
 "$script_path/../travis/run_lxd_container.sh" test-runner
 
-ls
 $lxc file push --recursive $project_path test-runner/root/
-$lxc exec test-runner -- sh -c "ls && cd snapcraft && ./tools/travis/setup_lxd.sh"
+$lxc exec test-runner -- sh -c "ls"
+$lxc exec test-runner -- sh -c "cd snapcraft && ./tools/travis/setup_lxd.sh"
 $lxc exec test-runner -- sh -c "cd snapcraft && $dependencies"
 $lxc exec test-runner -- sh -c "cd snapcraft && ./runtests.sh $test"
 
